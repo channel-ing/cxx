@@ -916,20 +916,15 @@ function renderFavorites() {
                 _favCurrentBtn = null;
             }
 
-            if (!window.voiceTTS || !window.voiceTTS.isTtsReady()) {
-                if (typeof showNotification === 'function') showNotification('请先在聊天设置里配置真实语音', 'info');
-                return;
-            }
             const msgId = btn.dataset.msgId;
             const fakeText = btn.dataset.fakeText;
-            if (!fakeText) return;
             btn.dataset.playing = '1';
             btn.style.opacity = '0.6';
             _favCurrentBtn = btn;
             try {
                 let audioUrl = null;
 
-                // 先查 IndexedDB 持久化缓存
+                // 先查 IndexedDB 持久化缓存（有缓存则直接播，不依赖 TTS 配置）
                 try {
                     const base64 = await localforage.getItem(`favAudio_${msgId}`);
                     if (base64 && typeof base64 === 'string') {
@@ -941,8 +936,21 @@ function renderFavorites() {
                     }
                 } catch (e) {}
 
-                // 没有缓存就正常请求 TTS
+                // 没有缓存才需要 TTS，此时检查配置是否就绪
                 if (!audioUrl) {
+                    if (!fakeText) {
+                        btn.dataset.playing = '0';
+                        btn.style.opacity = '1';
+                        if (_favCurrentBtn === btn) { _favCurrentBtn = null; }
+                        return;
+                    }
+                    if (!window.voiceTTS || !window.voiceTTS.isTtsReady()) {
+                        if (typeof showNotification === 'function') showNotification('请先在聊天设置里配置真实语音', 'info');
+                        btn.dataset.playing = '0';
+                        btn.style.opacity = '1';
+                        if (_favCurrentBtn === btn) { _favCurrentBtn = null; }
+                        return;
+                    }
                     audioUrl = await window.voiceTTS.getAudioForMessage(msgId, fakeText);
                 }
 

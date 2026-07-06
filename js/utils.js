@@ -518,8 +518,8 @@ async function importAllData(file) {
             },
             {
                 id: 'diary',
-                label: '陪伴日记',
-                indexedDBNeedles: ['companionDiary', 'companionDiaryBg', 'companionDiaryBgGallery'],
+                label: '陪伴模式（背景 / 语音 / 白噪音 / 日记）',
+                indexedDBNeedles: ['companionData', 'companionDiary', 'companionDiaryBg', 'companionDiaryBgGallery'],
                 localStorageNeedles: []
             },
             {

@@ -668,9 +668,16 @@
             _audioCacheOrder.length = 0;
         },
         _getAudioCache: (msgId) => {
-            const cfg = _getConfig();
-            const cacheKey = [msgId, cfg.voiceId || '', cfg.model || DEFAULT_TTS_MODEL, cfg.targetLang || 'JA'].join('|');
-            return _audioCache[cacheKey] || null;
+            // 存储时的 key 包含 textHash，取时没有，所以改成按 msgId 前缀搜索
+            // 从最近插入的开始找，优先返回最新播放的那条
+            const prefix = String(msgId) + '|';
+            for (let i = _audioCacheOrder.length - 1; i >= 0; i--) {
+                const key = _audioCacheOrder[i];
+                if (key.startsWith(prefix) && _audioCache[key]) {
+                    return _audioCache[key];
+                }
+            }
+            return null;
         }
     };
 
