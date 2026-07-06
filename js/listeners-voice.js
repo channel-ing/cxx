@@ -104,6 +104,12 @@
         if (videocallBtn) {
             videocallBtn.addEventListener('click', () => {
                 if (window.callFeature && typeof window.callFeature.startCall === 'function') {
+                    // 如果通话已在进行中，恢复窗口并提示
+                    if (window.callFeature.isActive && window.callFeature.isActive()) {
+                        window.callFeature.restoreWindow && window.callFeature.restoreWindow();
+                        if (typeof showNotification === 'function') showNotification('正在进行视频通话', 'info');
+                        return;
+                    }
                     window.callFeature.startCall(false);
                 } else {
                     if (typeof showNotification === 'function') {
