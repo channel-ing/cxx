@@ -591,6 +591,57 @@ html[data-theme="dark"] .companion-mode-card i {
     border-radius: 10px;
     padding: 8px;
     transition: background 0.2s ease;
+    cursor: pointer;
+}
+.companion-bg-card:active {
+    opacity: 0.75;
+}
+.companion-bg-card--active {
+    background: color-mix(in srgb, var(--accent-color, #c5a47e) 12%, var(--secondary-bg, #f5f5f5));
+    border: 1.5px solid var(--accent-color, #c5a47e);
+}
+.companion-bg-card-check {
+    position: absolute;
+    bottom: 4px;
+    right: 4px;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--accent-color, #c5a47e);
+    color: #fff;
+    font-size: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+/* 上传进度条 */
+.companion-bg-upload-progress {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 16px;
+    background: rgba(0,0,0,0.5);
+    display: flex;
+    align-items: center;
+    overflow: hidden;
+}
+.companion-bg-upload-bar {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    background: var(--accent-color, #c5a47e);
+    opacity: 0.7;
+    transition: width 0.4s ease;
+}
+.companion-bg-upload-label {
+    position: relative;
+    z-index: 1;
+    font-size: 9px;
+    color: #fff;
+    padding: 0 4px;
+    white-space: nowrap;
 }
 .companion-bg-card-thumb {
     width: 60px;

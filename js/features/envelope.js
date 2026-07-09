@@ -326,7 +326,7 @@ window.viewEnvLetter = function(section, id) {
     if (stampLabelEl) stampLabelEl.textContent = stampLabel;
     if (stampSubEl) stampSubEl.textContent = stampSub;
 
-    const dateObj = letter.timestamp ? new Date(letter.timestamp) : new Date();
+    const dateObj = new Date(letter.receivedTime || letter.sentTime || letter.timestamp || Date.now());
     const y = dateObj.getFullYear();
     const mo = String(dateObj.getMonth()+1).padStart(2,'0');
     const d = String(dateObj.getDate()).padStart(2,'0');

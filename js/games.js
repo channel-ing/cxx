@@ -926,13 +926,28 @@ function renderFavorites() {
 
                 // 先查 IndexedDB 持久化缓存（有缓存则直接播，不依赖 TTS 配置）
                 try {
-                    const base64 = await localforage.getItem(`favAudio_${msgId}`);
-                    if (base64 && typeof base64 === 'string') {
-                        const binary = atob(base64);
-                        const bytes = new Uint8Array(binary.length);
-                        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-                        const blob = new Blob([bytes], { type: 'audio/mpeg' });
-                        audioUrl = URL.createObjectURL(blob);
+                    // 阶段四：键名带 SESSION_ID 前缀；值可以是 base64 或 oss:// 引用
+                    const key = window.favAudioKey ? window.favAudioKey(msgId) : `favAudio_${msgId}`;
+                    let stored = await localforage.getItem(key);
+                    // 兼容旧键名（无 SESSION_ID 前缀）
+                    if (!stored) {
+                        stored = await localforage.getItem(`favAudio_${msgId}`);
+                    }
+                    if (stored && typeof stored === 'string') {
+                        if (stored.startsWith('oss://')) {
+                            // 云端引用：fetch blob URL
+                            if (window.CloudMedia) {
+                                const blobUrl = await window.CloudMedia.fetchUrl(stored);
+                                audioUrl = blobUrl;
+                            }
+                        } else {
+                            // 老格式：裸 base64
+                            const binary = atob(stored);
+                            const bytes = new Uint8Array(binary.length);
+                            for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+                            const blob = new Blob([bytes], { type: 'audio/mpeg' });
+                            audioUrl = URL.createObjectURL(blob);
+                        }
                     }
                 } catch (e) {}
 
@@ -1376,7 +1391,15 @@ function initComboMenu() {
     function makeStickerItem(src, onClick) {
         const item = document.createElement('div');
         item.className = 'sticker-grid-item';
-        item.innerHTML = `<img src="${src}" loading="lazy">`;
+        // 阶段三B：识别 oss:// 走懒加载
+        const isCloud = typeof src === 'string' && src.indexOf('oss://') === 0;
+        item.innerHTML = `<img loading="lazy">`;
+        const imgEl = item.querySelector('img');
+        if (isCloud) {
+            if (window.CloudMedia) window.CloudMedia.bindLazyImage(imgEl, src);
+        } else {
+            imgEl.src = src;
+        }
         item.onclick = (e) => { e.stopPropagation(); onClick(); };
         return item;
     }
@@ -1385,8 +1408,15 @@ function initComboMenu() {
         const item = document.createElement('div');
         item.className = 'sticker-grid-item';
         item.style.position = 'relative';
-        item.innerHTML = `<img src="${src}" loading="lazy"><div class="sticker-delete-btn" title="删除"><i class="fas fa-times"></i></div>`;
-        item.querySelector('img').onclick = (e) => { e.stopPropagation(); onClick(); };
+        const isCloud = typeof src === 'string' && src.indexOf('oss://') === 0;
+        item.innerHTML = `<img loading="lazy"><div class="sticker-delete-btn" title="删除"><i class="fas fa-times"></i></div>`;
+        const imgEl = item.querySelector('img');
+        if (isCloud) {
+            if (window.CloudMedia) window.CloudMedia.bindLazyImage(imgEl, src);
+        } else {
+            imgEl.src = src;
+        }
+        imgEl.onclick = (e) => { e.stopPropagation(); onClick(); };
         item.querySelector('.sticker-delete-btn').onclick = (e) => { e.stopPropagation(); onDelete(); };
         return item;
     }
@@ -1412,7 +1442,15 @@ function initComboMenu() {
                 picker.classList.remove('active');
                 const delayRange = settings.replyDelayMax - settings.replyDelayMin;
                 setTimeout(simulateReply, settings.replyDelayMin + Math.random() * delayRange);
-            }, () => {
+            }, async () => {
+                // 阶段三B：如果是云端引用，先删云端（失败不阻塞）
+                if (window.CloudMedia && typeof src === 'string' && src.indexOf('oss://') === 0) {
+                    try {
+                        await window.CloudMedia.delete(src);
+                    } catch (err) {
+                        console.warn('[cloud-media] 云端删除失败', err);
+                    }
+                }
                 myStickerLibrary.splice(idx, 1);
                 localforage.setItem(getStorageKey('myStickerLibrary'), myStickerLibrary);
                 showNotification('✓ 已删除', 'success');

@@ -525,7 +525,7 @@ async function importAllData(file) {
             {
                 id: 'tts',
                 label: '真实语音配置',
-                indexedDBNeedles: ['favAudio_'],
+                indexedDBNeedles: ['favAudio_', '_favAudio_'],
                 localStorageNeedles: ['voiceTtsConfig']
             }
         ];

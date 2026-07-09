@@ -232,8 +232,9 @@
             if (window.localforage) {
                 localforage.keys().then(function (keys) {
                     var promises = keys.map(function (k) {
-                        // favAudio_ 是音频 Base64，直接估算大小，不读内容避免内存爆炸
-                        if (k.startsWith('favAudio_')) {
+                        // favAudio_ 是音频 Base64 或 oss:// 引用，直接估算大小，不读内容避免内存爆炸
+                        // 阶段四：键名格式变为 CHAT_APP_V3_<SID>_favAudio_<msgId>，兼容旧格式
+                        if (k.startsWith('favAudio_') || k.includes('_favAudio_')) {
                             return localforage.getItem(k).then(function(raw) {
                                 var bytes = typeof raw === 'string' ? raw.length * 2 : 0;
                                 return { k: k, b: bytes };

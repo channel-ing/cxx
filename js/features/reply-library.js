@@ -513,12 +513,23 @@ function _renderModernToolbar() {
             if (isStickersTab) _batchToggleDisableStickers();
             else _batchToggleDisable();
         });
-        toolbar.querySelector('#batch-delete-btn')?.addEventListener('click', () => {
+        toolbar.querySelector('#batch-delete-btn')?.addEventListener('click', async () => {
             if (_batchSelectedIndices.size === 0) return;
             if (!confirm(`确定删除选中的 ${_batchSelectedIndices.size} 条？`)) return;
             const indices = [..._batchSelectedIndices].sort((a, b) => b - a);
             if (isStickersTab) {
                 const deleted = indices.map(i => stickerLibrary[i]).filter(Boolean);
+                // 阶段三B：云端引用先删云端（并行删除，失败不阻塞）
+                if (window.CloudMedia) {
+                    const cloudRefs = deleted.filter(d => typeof d === 'string' && d.indexOf('oss://') === 0);
+                    if (cloudRefs.length > 0) {
+                        await Promise.all(cloudRefs.map(ref =>
+                            window.CloudMedia.delete(ref).catch(err => {
+                                console.warn('[cloud-media] 批量云端删除失败', ref, err);
+                            })
+                        ));
+                    }
+                }
                 indices.forEach(i => stickerLibrary.splice(i, 1));
                 // 同步清理已删除条目的“屏蔽集合”
                 const dis = _getDisabledStickerItemsSet();
@@ -863,11 +874,19 @@ function _renderStickerTab(list, itemsToRender) {
         const isDisabled = disabledSet.has(item);
         const isSelected = _batchModeActive && _batchSelectedIndices.has(index);
         div.className = `sticker-item${isDisabled ? ' sticker-disabled' : ''}${isSelected ? ' sticker-batch-selected' : ''}`;
+        // 阶段三B：识别 oss:// 走懒加载
+        const isCloud = typeof item === 'string' && item.indexOf('oss://') === 0;
         div.innerHTML = `
-            <img src="${item}" loading="lazy">
+            <img loading="lazy">
             <div class="sticker-batch-check">✓</div>
             <div class="sticker-delete-btn"><i class="fas fa-times"></i></div>
         `;
+        const imgEl = div.querySelector('img');
+        if (isCloud) {
+            if (window.CloudMedia) window.CloudMedia.bindLazyImage(imgEl, item);
+        } else {
+            imgEl.src = item;
+        }
         div.addEventListener('click', () => {
             if (!_batchModeActive) return;
             if (currentMajorTab !== 'reply' || currentSubTab !== 'stickers') return;
@@ -875,9 +894,17 @@ function _renderStickerTab(list, itemsToRender) {
             else _batchSelectedIndices.add(index);
             renderReplyLibrary();
         });
-        div.querySelector('.sticker-delete-btn').addEventListener('click', e => {
+        div.querySelector('.sticker-delete-btn').addEventListener('click', async e => {
             e.stopPropagation();
             if (confirm('删除此表情？')) {
+                // 阶段三B：如果是云端引用，先删云端（失败不阻塞本地删除）
+                if (window.CloudMedia && typeof item === 'string' && item.indexOf('oss://') === 0) {
+                    try {
+                        await window.CloudMedia.delete(item);
+                    } catch (err) {
+                        console.warn('[cloud-media] 云端删除失败', err);
+                    }
+                }
                 // 如果该贴纸处于“已屏蔽”，删除后同步移出屏蔽集合
                 if (isDisabled) {
                     disabledSet.delete(item);

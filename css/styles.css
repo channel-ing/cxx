@@ -1590,6 +1590,11 @@
         body.with-background .message-received {
             background-color: rgba(var(--secondary-bg-rgb), 0.95);
         }
+        body.with-background .message-image-bubble-none {
+            background-color: transparent !important;
+            backdrop-filter: none !important;
+            -webkit-backdrop-filter: none !important;
+        }
         body.with-background .message-input {
             background-color: rgba(var(--primary-bg-rgb), 0.8);
         }

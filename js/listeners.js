@@ -127,23 +127,63 @@ function initChatActionListeners() {
                         showNotification(message.favorited ? '已收藏': '已取消收藏', 'success', 1500);
                         playSound('favorite');
 
-                        // 收藏语音消息时，把已播放过的音频持久化到 IndexedDB（存Base64）
+                        // 收藏语音消息时，把已播放过的音频持久化（优先存云端）
                         if (message.favorited && message.voice && message.voice.fakeText) {
-                            const cachedUrl = window.voiceTTS?._getAudioCache?.(String(messageId));
-                            if (cachedUrl) {
-                                fetch(cachedUrl).then(r => r.arrayBuffer()).then(buf => {
-                                    // 转成 Base64 字符串存储，更稳定
-                                    const uint8 = new Uint8Array(buf);
-                                    let binary = '';
-                                    uint8.forEach(b => binary += String.fromCharCode(b));
-                                    const base64 = btoa(binary);
-                                    localforage.setItem(`favAudio_${messageId}`, base64);
-                                }).catch(() => {});
-                            }
+                            (async () => {
+                                try {
+                                    const key = window.favAudioKey ? window.favAudioKey(messageId) : `favAudio_${messageId}`;
+                                    // 先检查本地是否已有缓存（之前存过的）
+                                    const existing = await localforage.getItem(key);
+                                    if (existing) return; // 已有，不重复存
+
+                                    // 尝试从 TTS 运行时缓存拿（用户播放过才有）
+                                    let audioUrl = window.voiceTTS?._getAudioCache?.(String(messageId));
+
+                                    // 没有缓存：主动调 TTS 生成（需要 TTS 已配置）
+                                    if (!audioUrl && window.voiceTTS?.isTtsReady() && message.voice.fakeText) {
+                                        try {
+                                            audioUrl = await window.voiceTTS.getAudioForMessage(String(messageId), message.voice.fakeText);
+                                        } catch (e) {
+                                            console.warn('[fav-audio] TTS 生成失败', e);
+                                        }
+                                    }
+
+                                    if (!audioUrl) return; // 实在没有，放弃
+
+                                    const buf = await fetch(audioUrl).then(r => r.arrayBuffer());
+                                    const blob = new Blob([buf], { type: 'audio/mpeg' });
+
+                                    if (window.CloudMedia && window.CloudSync && window.CloudSync.isConnected()) {
+                                        try {
+                                            const result = await window.CloudMedia.upload(blob, 'fav-audio', String(messageId));
+                                            await localforage.setItem(key, result.url);
+                                        } catch (e) {
+                                            console.warn('[fav-audio] 云端上传失败，降级本地', e);
+                                            const uint8 = new Uint8Array(buf);
+                                            let binary = '';
+                                            uint8.forEach(b => binary += String.fromCharCode(b));
+                                            await localforage.setItem(key, btoa(binary));
+                                        }
+                                    } else {
+                                        const uint8 = new Uint8Array(buf);
+                                        let binary = '';
+                                        uint8.forEach(b => binary += String.fromCharCode(b));
+                                        await localforage.setItem(key, btoa(binary));
+                                    }
+                                } catch (e) {
+                                    console.warn('[fav-audio] 收藏存储失败', e);
+                                }
+                            })();
                         }
-                        // 取消收藏时删除缓存
+                        // 取消收藏时删除缓存（本地 + 云端）
                         if (!message.favorited) {
-                            localforage.removeItem(`favAudio_${messageId}`).catch(() => {});
+                            const key = window.favAudioKey ? window.favAudioKey(messageId) : `favAudio_${messageId}`;
+                            localforage.getItem(key).then(async val => {
+                                if (typeof val === 'string' && val.startsWith('oss://') && window.CloudMedia) {
+                                    try { await window.CloudMedia.delete(val); } catch (e) {}
+                                }
+                                localforage.removeItem(key).catch(() => {});
+                            }).catch(() => {});
                         }
                         
                         throttledSaveData();
@@ -448,12 +488,22 @@ fileInput.addEventListener('change', function(e) {
 
 
                 saveBtn.addEventListener('click',
-                    () => {
+                    async () => {
                         if (currentAvatarData) {
                             updateAvatar(isPartner ? DOMElements.partner.avatar: DOMElements.me.avatar, currentAvatarData);
                             throttledSaveData();
                             showNotification('头像已更新', 'success');
                             hideModal(modal.modal);
+                            // 阶段四：头像上传云端备份（失败不影响本地使用）
+                            if (window.CloudMedia && window.CloudSync && window.CloudSync.isConnected()) {
+                                try {
+                                    const category = isPartner ? 'avatars' : 'my-avatars';
+                                    const avatarId = isPartner ? 'partner' : 'me';
+                                    await window.CloudMedia.upload(currentAvatarData, category, avatarId);
+                                } catch (e) {
+                                    console.warn('[avatar] 云端备份失败', e);
+                                }
+                            }
                         }
                     });
 
@@ -1402,14 +1452,45 @@ if (_chatSettingsEl) _chatSettingsEl.addEventListener('click', () => {
                         showNotification('文件较大，正在处理中...', 'info', 2000);
                     }
                     const reader = new FileReader();
-                    reader.onload = (event) => {
+                    reader.onload = async (event) => {
                         const base64 = event.target.result;
-                        savedBackgrounds.push({
-                            id: `user-${Date.now()}`,
-                            type: file.type === 'image/gif' ? 'gif' : 'image',
-                            value: base64
-                        });
+                        const bgType = file.type === 'image/gif' ? 'gif' : 'image';
+                        const bgId = `user-${Date.now()}`;
+
+                        // 本地永远存全尺寸 base64（保证离线/刷新后立刻显示）
+                        // 云端上传一份备份 + 生成缩略图（供图库预览 + 换设备恢复）
+                        let stored = { id: bgId, type: bgType, value: base64 };
+                        if (window.CloudMedia && window.CloudSync && window.CloudSync.isConnected()) {
+                            showNotification('正在上传到云端...', 'info', 2000);
+                            try {
+                                const uploadResult = await window.CloudMedia.upload(base64, 'backgrounds', bgId);
+                                let thumb = null;
+                                try {
+                                    thumb = await window.CloudMedia.makeThumbnail(base64, 200);
+                                } catch (thumbErr) {
+                                    console.warn('[cloud-media] 缩略图生成失败', thumbErr);
+                                }
+                                // value 保持本地 base64；cloudKey/cloudUrl/thumbnail 存云端信息
+                                stored = {
+                                    id: bgId,
+                                    type: bgType,
+                                    value: base64,             // 本地全尺寸（刷新立刻显示）
+                                    thumbnail: thumb,           // 缩略图（图库预览）
+                                    cloudKey: uploadResult.key, // 云端对象 key
+                                    cloudUrl: uploadResult.url  // 云端 oss:// 引用（同步/换设备用）
+                                };
+                            } catch (err) {
+                                console.warn('[cloud-media] 背景上传失败，仅本地存储', err);
+                                showNotification('云端上传失败，暂存本地', 'error', 2500);
+                            }
+                        }
+
+                        savedBackgrounds.push(stored);
                         saveBackgroundGallery();
+                        // 写 localStorage 让 renderBackgroundGallery 里 safeGetItem 能立刻读到激活值
+                        if (typeof safeSetItem === 'function') {
+                            try { safeSetItem(getStorageKey('chatBackground'), base64); } catch (e) {}
+                        }
                         renderBackgroundGallery();
                         applyBackground(base64);
                         localforage.setItem(getStorageKey('chatBackground'), base64);
@@ -3214,18 +3295,71 @@ playlist.style.top = (rect.top + (player.classList.contains('collapsed') ? 65 : 
                 sendBtn.addEventListener('click',
                     () => {
                         if (currentImageData) {
+                            const messageId = Date.now();
+                            let imageField = currentImageData;
+                            let uploadStatus = null;
+
+                            // 阶段三B：如果是 base64 且连了云端，走上传队列（无感知重试）
+                            const isBase64Img = typeof currentImageData === 'string' && currentImageData.indexOf('data:image') === 0;
+                            const cloudReady = !!(window.CloudMedia && window.CloudSync && window.CloudSync.isConnected());
+                            if (isBase64Img && cloudReady) {
+                                const taskId = 'up_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+                                imageField = 'pending://' + taskId;
+                                uploadStatus = 'uploading';
+                                // 同步入队：内部同步写内存缓存 + 队列，随后消息渲染能立刻读到 base64
+                                window.CloudMedia.queueUpload(currentImageData, 'chat-images', {
+                                    taskId: taskId,
+                                    messageId: messageId,
+                                    onSuccess: async (result) => {
+                                        const target = messages.find(m => String(m.id) === String(messageId));
+                                        if (!target) return;
+                                        target.image = result.url;
+                                        delete target.uploadStatus;
+                                        try { throttledSaveData(); } catch (e) {}
+                                        // 先拉 blob URL，拿到后再替换 DOM，避免 img.src='' 的白屏闪烁
+                                        try {
+                                            const wrapper = document.querySelector('.message-wrapper[data-id="' + messageId + '"]');
+                                            if (!wrapper) return;
+                                            const wrap = wrapper.querySelector('.message-image-pending-wrap');
+                                            if (!wrap) return;
+                                            const img = wrap.querySelector('img');
+                                            const parent = wrap.parentNode;
+                                            if (!img || !parent) return;
+                                            // 先拉全尺寸 blob
+                                            let blobUrl = null;
+                                            try {
+                                                blobUrl = window.CloudMedia ? await window.CloudMedia.fetchUrl(result.url) : null;
+                                            } catch (fetchErr) {
+                                                console.warn('[cloud-media] 上传完拉图失败，继续显示本地图', fetchErr);
+                                            }
+                                            // 有 blob 就直接设 src；没有就走懒加载（下次滚动到触发）
+                                            img.removeAttribute('data-pending-ref');
+                                            img.setAttribute('onclick', "viewImage('" + result.url + "')");
+                                            if (blobUrl) {
+                                                img.src = blobUrl;
+                                            } else {
+                                                img.src = '';
+                                                img.setAttribute('data-lazy-cloud-ref', result.url);
+                                                if (window.CloudMedia) window.CloudMedia.bindLazyImage(img, result.url);
+                                            }
+                                            parent.replaceChild(img, wrap);
+                                        } catch (e) { console.warn('[cloud-media] 局部更新失败', e); }
+                                    }
+                                });
+                            }
 
                             addMessage({
-                                id: Date.now(),
+                                id: messageId,
                                 sender: 'user',
                                 text: '',
                                 timestamp: new Date(),
-                                image: currentImageData,
+                                image: imageField,
                                 status: 'sent',
                                 favorited: false,
                                 note: null,
                                 replyTo: currentReplyTo,
-                                type: 'normal'
+                                type: 'normal',
+                                uploadStatus: uploadStatus
                             });
                             playSound('send');
                             currentReplyTo = null;

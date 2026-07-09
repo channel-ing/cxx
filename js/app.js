@@ -194,11 +194,23 @@ const stickerInput = document.getElementById('sticker-file-input');
 
                     let successCount = 0;
                     let failCount = 0;
+                    const cloudReady = !!(window.CloudMedia && window.CloudSync && window.CloudSync.isConnected());
 
                     for (const file of validFiles) {
                         try {
                             const base64 = await optimizeImage(file, 300, 0.8);
-                            stickerLibrary.push(base64);
+                            let toStore = base64;
+                            // 阶段三B：连了云端就上传，本地只存 oss:// 引用
+                            if (cloudReady) {
+                                try {
+                                    const r = await window.CloudMedia.upload(base64, 'stickers');
+                                    toStore = r.url;
+                                } catch (upErr) {
+                                    console.warn('[cloud-media] 贴纸上传失败，降级本地', upErr);
+                                    // toStore 保持 base64
+                                }
+                            }
+                            stickerLibrary.push(toStore);
                             successCount++;
                         } catch (err) {
                             console.error(err);
@@ -230,10 +242,20 @@ if (myStickerQuickUpload) {
         showNotification('正在处理 ' + validFiles.length + ' 张...', 'info');
         let ok = 0, fail = 0;
         const newStickers = [];
+        const cloudReady = !!(window.CloudMedia && window.CloudSync && window.CloudSync.isConnected());
         for (const file of validFiles) {
             try {
                 const base64 = await optimizeImage(file, 300, 0.8);
-                newStickers.push(base64);
+                let toStore = base64;
+                if (cloudReady) {
+                    try {
+                        const r = await window.CloudMedia.upload(base64, 'my-stickers');
+                        toStore = r.url;
+                    } catch (upErr) {
+                        console.warn('[cloud-media] 我的贴纸上传失败，降级本地', upErr);
+                    }
+                }
+                newStickers.push(toStore);
                 ok++;
             } catch(err) { fail++; }
         }
@@ -440,6 +462,53 @@ if (myStickerQuickUpload) {
 })();
 
 window.addEventListener('load', function() {
+    // 阶段三B：恢复未完成的图片上传队列（页面刷新后继续传）
+    setTimeout(function () {
+        if (!window.CloudMedia || typeof window.CloudMedia.restorePendingQueue !== 'function') return;
+        window.CloudMedia.restorePendingQueue(function (taskId, record) {
+            var msgId = record && record.messageId;
+            if (msgId == null) return null;
+            return async function (result) {
+                try {
+                    if (typeof messages === 'undefined' || !Array.isArray(messages)) return;
+                    var target = messages.find(function (m) { return String(m.id) === String(msgId); });
+                    if (!target) return;
+                    target.image = result.url;
+                    delete target.uploadStatus;
+                    try { if (typeof throttledSaveData === 'function') throttledSaveData(); } catch (e) {}
+                    try {
+                        var wrapper = document.querySelector('.message-wrapper[data-id="' + msgId + '"]');
+                        if (wrapper) {
+                            var wrap = wrapper.querySelector('.message-image-pending-wrap');
+                            if (wrap) {
+                                var img = wrap.querySelector('img');
+                                var parent = wrap.parentNode;
+                                if (img && parent) {
+                                    var blobUrl = null;
+                                    try {
+                                        blobUrl = window.CloudMedia ? await window.CloudMedia.fetchUrl(result.url) : null;
+                                    } catch (fetchErr) {
+                                        console.warn('[cloud-media] restore 拉图失败', fetchErr);
+                                    }
+                                    img.removeAttribute('data-pending-ref');
+                                    img.setAttribute('onclick', "viewImage('" + result.url + "')");
+                                    if (blobUrl) {
+                                        img.src = blobUrl;
+                                    } else {
+                                        img.src = '';
+                                        img.setAttribute('data-lazy-cloud-ref', result.url);
+                                        if (window.CloudMedia) window.CloudMedia.bindLazyImage(img, result.url);
+                                    }
+                                    parent.replaceChild(img, wrap);
+                                }
+                            }
+                        }
+                    } catch (e) { console.warn('[cloud-media] restore 局部更新失败', e); }
+                } catch (e) { console.warn(e); }
+            };
+        });
+    }, 3000);
+
     setTimeout(function() {
         try {
             if (localStorage.getItem('dailyGreetingShown') === new Date().toDateString()) return;

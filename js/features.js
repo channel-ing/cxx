@@ -449,7 +449,15 @@ function showEmojiTab() {
     stickerLibrary.forEach(src => {
         const item = document.createElement('div');
         item.className = 'picker-item';
-        item.innerHTML = `<img src="${src}" style="width:100%; height:100%; object-fit:cover; border-radius:6px;">`;
+        // 阶段三B：识别 oss:// 走懒加载
+        const isCloud = typeof src === 'string' && src.indexOf('oss://') === 0;
+        item.innerHTML = `<img style="width:100%; height:100%; object-fit:cover; border-radius:6px;">`;
+        const imgEl = item.querySelector('img');
+        if (isCloud) {
+            if (window.CloudMedia) window.CloudMedia.bindLazyImage(imgEl, src);
+        } else {
+            imgEl.src = src;
+        }
         item.onclick = () => {
             if (isBatchMode) {
                 batchMessages.push({ id: Date.now() + batchMessages.length, text: '', image: src });
@@ -729,18 +737,66 @@ function showPokeTab() {
                 sendBtn.addEventListener('click',
                     () => {
                         if (currentImageData) {
+                            const messageId = Date.now();
+                            let imageField = currentImageData;
+                            let uploadStatus = null;
+
+                            const isBase64Img = typeof currentImageData === 'string' && currentImageData.indexOf('data:image') === 0;
+                            const cloudReady = !!(window.CloudMedia && window.CloudSync && window.CloudSync.isConnected());
+                            if (isBase64Img && cloudReady) {
+                                const taskId = 'up_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+                                imageField = 'pending://' + taskId;
+                                uploadStatus = 'uploading';
+                                window.CloudMedia.queueUpload(currentImageData, 'chat-images', {
+                                    taskId: taskId,
+                                    messageId: messageId,
+                                    onSuccess: async (result) => {
+                                        const target = messages.find(m => String(m.id) === String(messageId));
+                                        if (!target) return;
+                                        target.image = result.url;
+                                        delete target.uploadStatus;
+                                        try { throttledSaveData(); } catch (e) {}
+                                        try {
+                                            const wrapper = document.querySelector('.message-wrapper[data-id="' + messageId + '"]');
+                                            if (!wrapper) return;
+                                            const wrap = wrapper.querySelector('.message-image-pending-wrap');
+                                            if (!wrap) return;
+                                            const img = wrap.querySelector('img');
+                                            const parent = wrap.parentNode;
+                                            if (!img || !parent) return;
+                                            let blobUrl = null;
+                                            try {
+                                                blobUrl = window.CloudMedia ? await window.CloudMedia.fetchUrl(result.url) : null;
+                                            } catch (fetchErr) {
+                                                console.warn('[cloud-media] 上传完拉图失败，继续显示本地图', fetchErr);
+                                            }
+                                            img.removeAttribute('data-pending-ref');
+                                            img.setAttribute('onclick', "viewImage('" + result.url + "')");
+                                            if (blobUrl) {
+                                                img.src = blobUrl;
+                                            } else {
+                                                img.src = '';
+                                                img.setAttribute('data-lazy-cloud-ref', result.url);
+                                                if (window.CloudMedia) window.CloudMedia.bindLazyImage(img, result.url);
+                                            }
+                                            parent.replaceChild(img, wrap);
+                                        } catch (e) { console.warn('[cloud-media] 局部更新失败', e); }
+                                    }
+                                });
+                            }
 
                             addMessage({
-                                id: Date.now(),
+                                id: messageId,
                                 sender: 'user',
                                 text: '',
                                 timestamp: new Date(),
-                                image: currentImageData,
+                                image: imageField,
                                 status: 'sent',
                                 favorited: false,
                                 note: null,
                                 replyTo: currentReplyTo,
-                                type: 'normal'
+                                type: 'normal',
+                                uploadStatus: uploadStatus
                             });
                             playSound('send');
                             currentReplyTo = null;
