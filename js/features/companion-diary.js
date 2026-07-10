@@ -102,6 +102,18 @@
             partnerNote: entry.partnerNote || '',
             userNote: entry.userNote || ''
         };
+        // 关键修复：写入前先从 localforage 重新加载最新数据。
+        // 原因：init() 调用 loadDiary() 时 SESSION_ID 可能尚未就绪（异步初始化），
+        // 导致 getKey() 返回无 SESSION_ID 的旧 key，读到 null，_diaryEntries 为空。
+        // 陪伴结束时（SESSION_ID 已就绪），直接 unshift 空数组再 save 会用 [新记录]
+        // 覆盖掉 localforage 正确 key 里的所有历史记录。
+        // 重新 loadDiary() 此时 SESSION_ID 必然已就绪，可读到正确的历史数据。
+        await loadDiary();
+        // 防重复写入（理论上同一条记录不应被写两次）
+        if (_diaryEntries.some(function(e) { return String(e.id) === String(rec.id); })) {
+            console.warn('[companion-diary] 重复 entry，跳过：', rec.id);
+            return;
+        }
         _diaryEntries.unshift(rec);
         await saveDiary();
         window._companionDiaryEntries = _diaryEntries;
