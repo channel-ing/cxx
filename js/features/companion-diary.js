@@ -67,6 +67,10 @@
                     await localforage.setItem(newKey, data);
                     await localforage.removeItem(oldKey);
                     console.log('[companion-diary] 日记数据已合并迁移到新键名，共', data.length, '条');
+                    // 合并完立刻推送云端，防止云端旧数据覆盖本地
+                    if (window.CloudSyncEngine && window.CloudSyncEngine.requestSyncNow) {
+                        setTimeout(function() { window.CloudSyncEngine.requestSyncNow(); }, 500);
+                    }
                 }
             }
             _diaryEntries = Array.isArray(data) ? data : [];
