@@ -3031,9 +3031,19 @@
             bubble.classList.add('companion-bubble-image');
             bubble.innerHTML = `
                 <div class="companion-bubble-avatar">${avatarHtml}</div>
-                <img class="companion-bubble-image-raw" src="${message.image}">
+                <img class="companion-bubble-image-raw">
             `;
             area.appendChild(bubble);
+            // 支持 oss:// 云端图片懒加载
+            var imgEl = bubble.querySelector('img.companion-bubble-image-raw');
+            if (imgEl) {
+                var imgSrc = message.image || '';
+                if (imgSrc.indexOf('oss://') === 0 && window.CloudMedia) {
+                    window.CloudMedia.bindLazyImage(imgEl, imgSrc);
+                } else {
+                    imgEl.src = imgSrc;
+                }
+            }
             _startBubbleFadeDelayed(bubble, 8000);
         } else {
             bubble.innerHTML = `
