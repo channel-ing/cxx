@@ -50,14 +50,23 @@
             const newKey = getKey();
             const oldKey = _getOldKey();
             let data = await localforage.getItem(newKey);
-            // 一次性迁移：旧键有数据而新键没有，迁移过来
-            if ((!data || !Array.isArray(data) || data.length === 0) && newKey !== oldKey) {
+            // 合并迁移：旧键有数据时，无论新键是否有数据，都合并进来
+            if (newKey !== oldKey) {
                 const oldData = await localforage.getItem(oldKey);
                 if (Array.isArray(oldData) && oldData.length > 0) {
-                    data = oldData;
+                    const newData = Array.isArray(data) ? data : [];
+                    // 按 id 去重合并，旧数据优先（旧数据可能更多）
+                    const merged = [...newData];
+                    const existingIds = new Set(newData.map(e => e.id));
+                    for (const entry of oldData) {
+                        if (!existingIds.has(entry.id)) {
+                            merged.push(entry);
+                        }
+                    }
+                    data = merged;
                     await localforage.setItem(newKey, data);
                     await localforage.removeItem(oldKey);
-                    console.log('[companion-diary] 日记数据已迁移到新键名');
+                    console.log('[companion-diary] 日记数据已合并迁移到新键名，共', data.length, '条');
                 }
             }
             _diaryEntries = Array.isArray(data) ? data : [];
