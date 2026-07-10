@@ -3185,6 +3185,17 @@
 
         document.documentElement.appendChild(modal);
 
+        // 历史记录图片懒加载（oss:// 引用）
+        if (window.CloudMedia) {
+            modal.querySelectorAll('img.companion-bubble-image-raw').forEach(function(imgEl) {
+                var src = imgEl.getAttribute('src') || '';
+                if (src.indexOf('oss://') === 0) {
+                    imgEl.removeAttribute('src');
+                    window.CloudMedia.bindLazyImage(imgEl, src);
+                }
+            });
+        }
+
         // 关闭按钮
         modal.querySelector('.companion-history-close').addEventListener('click', () => {
             modal.classList.remove('active');
