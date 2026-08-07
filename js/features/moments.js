@@ -15,7 +15,7 @@ const _M_DLY_MAX = 20 * 60 * 1000;
 const _CS_SETTINGS_KEY = 'csSpaceSettings';
 
 // 情侣空间设置（默认值）
-let _csSettings = { dlyMin: 5, dlyMax: 20, savePartnerImg: false, allowReadNoReply: false, readNoReplyChance: 0.2 };
+let _csSettings = { dlyMin: 5, dlyMax: 20, savePartnerImg: false, allowReadNoReply: false, readNoReplyChance: 0.2, cmtCombineCards: false };
 
 // 情侣空间"已读不回"判定：关闭开关时必回；开启后按 readNoReplyChance 概率跳过。
 // 统一给"梦角评论新动态"和"梦角回复用户评论"这两处共用。
@@ -56,7 +56,12 @@ function _mCmtContent() {
     const hasText    = textPool.length > 0;
     const hasSticker = stickerPool.length > 0;
     const randSticker = () => stickerPool[Math.floor(Math.random() * stickerPool.length)];
-    const randText   = () => textPool[Math.floor(Math.random() * textPool.length)];
+    const randText   = () => {
+        if (!_csSettings.cmtCombineCards) return textPool[Math.floor(Math.random() * textPool.length)]; // 开关关闭：老效果，只抽1句
+        let t = ''; const n = 1 + Math.floor(Math.random() * 3); // 开关打开：1~3句拼接，跟发动态的拼句逻辑一致，但句数少一点
+        for (let i = 0; i < n; i++) { const s = textPool[Math.floor(Math.random()*textPool.length)]; t += s + (Math.random()<.2?'！':Math.random()<.2?'……':'。'); }
+        return t;
+    };
 
     if (!hasText && !hasSticker) return null;  // 没有可用内容，不回复
     if (!hasSticker) return { text: randText(), image: null };
@@ -715,6 +720,7 @@ window.openCsSettings = async function () {
     const maxVal     = document.getElementById('cs-dly-max-val');
     const saveToggle = document.getElementById('cs-save-img-toggle');
     const noReplyToggle = document.getElementById('cs-read-no-reply-toggle');
+    const combineToggle = document.getElementById('cs-cmt-combine-toggle');
 
     function updateSliderUI() {
         minSlider.value = _csSettings.dlyMin;
@@ -773,6 +779,11 @@ window.openCsSettings = async function () {
     if (noReplyToggle) {
         noReplyToggle.checked = !!_csSettings.allowReadNoReply;
         noReplyToggle.onchange = () => { _csSettings.allowReadNoReply = noReplyToggle.checked; _saveCsSettings(); };
+    }
+
+    if (combineToggle) {
+        combineToggle.checked = !!_csSettings.cmtCombineCards;
+        combineToggle.onchange = () => { _csSettings.cmtCombineCards = combineToggle.checked; _saveCsSettings(); };
     }
 
     // ── 壁纸画廊 ──

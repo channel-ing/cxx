@@ -181,6 +181,8 @@ autoSendEnabled: false,
 autoSendInterval: 5,
         allowReadNoReply: false, 
         readNoReplyChance: 0.2,
+        combineReplyCards: false,
+        combineReplyMaxCards: 3,
         timeFormat: 'HH:mm',
         customSoundUrl: '',
         // 音效：两方分别可选（若对应 URL 为空则使用内置预设）
@@ -1861,11 +1863,22 @@ if (partnerPersonas && partnerPersonas.length > 0 && Math.random() < 0.3) {
                     const replyPool = replyPoolOnce;
                     // 被屏蔽或无效项直接换下一个，尽量保证每次都产出可用回复
                     let replyText = '';
-                    for (let t = 0; t < 6; t++) {
-                        const picked = replyPool[Math.floor(Math.random() * replyPool.length)];
-                        if (picked && String(picked).trim()) {
-                            replyText = String(picked).trim();
-                            break;
+                    if (settings.combineReplyCards) {
+                        // 拼接字卡：1 ~ combineReplyMaxCards 句随机拼接，句子间随机加标点断句
+                        const maxN = Math.max(1, Math.min(5, parseInt(settings.combineReplyMaxCards, 10) || 3));
+                        const n = 1 + Math.floor(Math.random() * maxN);
+                        for (let k = 0; k < n; k++) {
+                            const picked = replyPool[Math.floor(Math.random() * replyPool.length)];
+                            replyText += picked + (Math.random() < .2 ? '！' : Math.random() < .2 ? '……' : '。');
+                        }
+                    } else {
+                        // 开关关闭：老逻辑，只抽1句（保留原有的跳过空/无效项重试）
+                        for (let t = 0; t < 6; t++) {
+                            const picked = replyPool[Math.floor(Math.random() * replyPool.length)];
+                            if (picked && String(picked).trim()) {
+                                replyText = String(picked).trim();
+                                break;
+                            }
                         }
                     }
                     if (!replyText && i === replyCount - 1) {
