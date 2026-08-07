@@ -259,9 +259,13 @@ window._mToggleSticker=function(postId){
     picker.style.cssText=`position:fixed;bottom:${window.innerHeight-rect.top+8}px;left:48px;right:48px;z-index:9500;background:var(--secondary-bg);border:1px solid var(--border-color);border-radius:14px;padding:10px;box-shadow:0 8px 32px rgba(0,0,0,0.25);display:grid;grid-template-columns:repeat(4,1fr);gap:8px;max-height:200px;overflow-y:auto;`;
     pool.forEach(src=>{
         const b=document.createElement('button');
-        b.style.cssText='background:var(--primary-bg);border:1px solid var(--border-color);padding:0;cursor:pointer;border-radius:7px;aspect-ratio:1/1;overflow:hidden;display:flex;align-items:center;justify-content:center;';
+        b.style.cssText='position:relative;background:var(--primary-bg);border:1px solid var(--border-color);padding:0;cursor:pointer;border-radius:7px;overflow:hidden;display:block;';
+        const spacer=document.createElement('div');
+        spacer.style.cssText='padding-top:100%;'; // 用百分比padding撑出正方形高度，兼容性比aspect-ratio更稳，老浏览器也支持
+        b.appendChild(spacer);
         const isCloud=src.indexOf('oss://')===0;
-        b.innerHTML=isCloud?`<img data-lazy-cloud-ref="${src}" style="width:100%;height:100%;object-fit:cover;">`:`<img src="${src}" style="width:100%;height:100%;object-fit:cover;">`;
+        const imgTag=isCloud?`<img data-lazy-cloud-ref="${src}" style="position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;">`:`<img src="${src}" style="position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;">`;
+        b.insertAdjacentHTML('beforeend', imgTag);
         b.onclick=()=>window._mSelectSticker(postId,src);
         picker.appendChild(b);
     });
