@@ -15,7 +15,15 @@ const _M_DLY_MAX = 20 * 60 * 1000;
 const _CS_SETTINGS_KEY = 'csSpaceSettings';
 
 // 情侣空间设置（默认值）
-let _csSettings = { dlyMin: 5, dlyMax: 20, savePartnerImg: false };
+let _csSettings = { dlyMin: 5, dlyMax: 20, savePartnerImg: false, allowReadNoReply: false, readNoReplyChance: 0.2 };
+
+// 情侣空间"已读不回"判定：关闭开关时必回；开启后按 readNoReplyChance 概率跳过。
+// 统一给"梦角评论新动态"和"梦角回复用户评论"这两处共用。
+function _mShouldReply() {
+    if (!_csSettings.allowReadNoReply) return true;
+    const chance = Math.max(0, Math.min(1, Number(_csSettings.readNoReplyChance) || 0));
+    return Math.random() >= chance;
+}
 
 const _mDly   = () => {
     const minMs = (_csSettings.dlyMin || 5) * 60000;
@@ -122,7 +130,7 @@ function _mPostContent() {
 
 async function generatePartnerMoment() {
     const now=Date.now();
-    const c=_mPostContent(); if(!c) return;const post={id:_mUid('partner'),type:'partner',text:c.text,images:c.images,date:_mToday(),timestamp:now,isNewForUser:true,userLiked:false,partnerLiked:false,pendingLikeTime:null,pendingLikeSilent:false,comments:[],pendingPartnerComment:null,chainProbability:1.00};
+    const c=_mPostContent(); if(!c) return;const post={id:_mUid('partner'),type:'partner',text:c.text,images:c.images,date:_mToday(),timestamp:now,isNewForUser:true,userLiked:false,partnerLiked:false,pendingLikeTime:null,pendingLikeSilent:false,comments:[],pendingPartnerComment:null};
     if(Math.random()<0.10){const c=_mCmtContent();if(c)post.pendingPartnerComment={text:c.text,image:c.image,time:now+Math.floor(_mDly()),isSelfComment:true};}
     if(Math.random()<0.10){post.pendingLikeTime=now+Math.floor(_mDly());post.pendingLikeSilent=true;}
     momentsData.posts.unshift(post); saveMomentsData(); _pushNotif('newPost',post.id);
@@ -136,17 +144,13 @@ async function generatePartnerMoment() {
 function onUserPostCreated(postId) {
     const p=momentsData.posts.find(p=>p.id===postId); if(!p||p.type!=='user')return;
     p.pendingLikeTime=Date.now()+_mDly();p.pendingLikeSilent=false;
-    if(Math.random()<0.90){const c=_mCmtContent();if(c){p.pendingPartnerComment={text:c.text,image:c.image,time:Date.now()+_mDly(),replyTo:null};p.chainProbability=0.45;}else{p.chainProbability=null;}}
-    else{p.chainProbability=null;}
+    if(_mShouldReply()){const c=_mCmtContent();if(c){p.pendingPartnerComment={text:c.text,image:c.image,time:Date.now()+_mDly(),replyTo:null};}}
     saveMomentsData();
 }
 
 function onUserCommented(postId) {
     const p=momentsData.posts.find(p=>p.id===postId);if(!p)return;
-    const prob=p.chainProbability;
-    if(prob===null||prob<0.06){p.chainProbability=null;saveMomentsData();return;}
-    if(Math.random()<prob){const c=_mCmtContent();if(c){p.pendingPartnerComment={text:c.text,image:c.image,time:Date.now()+_mDly(),replyTo:{authorName:_mMName()}};p.chainProbability=prob/2;}else{p.chainProbability=null;}}
-    else{p.chainProbability=null;}
+    if(_mShouldReply()){const c=_mCmtContent();if(c){p.pendingPartnerComment={text:c.text,image:c.image,time:Date.now()+_mDly(),replyTo:{authorName:_mMName()}};}}
     saveMomentsData();
 }
 
@@ -246,14 +250,13 @@ window._mToggleSticker=function(postId){
     }
     const btn=document.getElementById('cs-sticker-btn-'+postId);
     const rect=btn?btn.getBoundingClientRect():{top:300,left:10};
-    const w=Math.min(240,window.innerWidth-20);
     const picker=document.createElement('div'); picker.id='cs-sticker-picker';
-    picker.style.cssText=`position:fixed;bottom:${window.innerHeight-rect.top+8}px;left:${Math.max(8,rect.left-w/2+14)}px;z-index:9500;background:var(--secondary-bg);border:1px solid var(--border-color);border-radius:14px;padding:8px;box-shadow:0 8px 24px rgba(0,0,0,0.15);display:grid;grid-template-columns:repeat(4,1fr);gap:4px;width:${w}px;max-height:220px;overflow-y:auto;`;
+    picker.style.cssText=`position:fixed;bottom:${window.innerHeight-rect.top+8}px;left:48px;right:48px;z-index:9500;background:var(--secondary-bg);border:1px solid var(--border-color);border-radius:14px;padding:10px;box-shadow:0 8px 32px rgba(0,0,0,0.25);display:grid;grid-template-columns:repeat(4,1fr);gap:8px;max-height:200px;overflow-y:auto;`;
     pool.forEach(src=>{
         const b=document.createElement('button');
-        b.style.cssText='background:none;border:none;padding:2px;cursor:pointer;border-radius:8px;aspect-ratio:1;overflow:hidden;';
+        b.style.cssText='background:var(--primary-bg);border:1px solid var(--border-color);padding:0;cursor:pointer;border-radius:7px;aspect-ratio:1/1;overflow:hidden;display:flex;align-items:center;justify-content:center;';
         const isCloud=src.indexOf('oss://')===0;
-        b.innerHTML=isCloud?`<img data-lazy-cloud-ref="${src}" style="width:100%;height:100%;object-fit:cover;border-radius:6px;">`:`<img src="${src}" style="width:100%;height:100%;object-fit:cover;border-radius:6px;">`;
+        b.innerHTML=isCloud?`<img data-lazy-cloud-ref="${src}" style="width:100%;height:100%;object-fit:cover;">`:`<img src="${src}" style="width:100%;height:100%;object-fit:cover;">`;
         b.onclick=()=>window._mSelectSticker(postId,src);
         picker.appendChild(b);
     });
@@ -659,7 +662,7 @@ window.submitCsPost=async function(){
                 }else{images.push(d);}
             }
         }
-        const post={id:_mUid('user'),type:'user',text,images,video:video||null,videoCover:videoCover||null,date:_mToday(),timestamp:Date.now(),isNewForUser:false,userLiked:false,partnerLiked:false,pendingLikeTime:null,pendingLikeSilent:false,comments:[],pendingPartnerComment:null,chainProbability:null};
+        const post={id:_mUid('user'),type:'user',text,images,video:video||null,videoCover:videoCover||null,date:_mToday(),timestamp:Date.now(),isNewForUser:false,userLiked:false,partnerLiked:false,pendingLikeTime:null,pendingLikeSilent:false,comments:[],pendingPartnerComment:null};
         momentsData.posts.unshift(post);saveMomentsData();onUserPostCreated(post.id);
         if(typeof window._albumSyncMomentsPost==="function")window._albumSyncMomentsPost(post.id,images,video,videoCover);
         window.closeCsCompose();_csRenderFeed();
@@ -672,6 +675,23 @@ window._openMomentsPost=function(postId){window.openCoupleSpace();setTimeout(()=
 
 // ─── 暴露 ───
 window.loadMomentsData=loadMomentsData;window.saveMomentsData=saveMomentsData;window.checkMomentsStatus=checkMomentsStatus;window.generatePartnerMoment=generatePartnerMoment;window.onUserPostCreated=onUserPostCreated;window.onUserCommented=onUserCommented;window.getMomentsUnreadCount=getMomentsUnreadCount;window.markPostRead=markPostRead;window._updateMomentsBadge=_updateBadge;
+
+// ── 调试：已读不回测试用（浏览器控制台专用，跟正式功能无关）──────────────────
+// 强制设定"已读不回"开关和概率，跳过手动去设置里点的步骤
+window._mDebugSetReplyChance = function(allow, chance) {
+    _csSettings.allowReadNoReply = !!allow;
+    if (typeof chance === 'number') _csSettings.readNoReplyChance = chance;
+    console.log('[Moments Debug] allowReadNoReply=', _csSettings.allowReadNoReply, ' readNoReplyChance=', _csSettings.readNoReplyChance);
+};
+// 把某条帖子（不传就用最新一条）待发送的回复立刻"送达"，不用真的等5~20分钟
+window._mDebugForceDeliver = function(postId) {
+    const p = postId ? momentsData.posts.find(x => x.id === postId) : momentsData.posts[0];
+    if (!p) { console.warn('[Moments Debug] 没找到帖子'); return; }
+    if (!p.pendingPartnerComment) { console.warn('[Moments Debug] 这条帖子当前没有待发送的回复（可能是刚才判定为"不回"了）'); return; }
+    p.pendingPartnerComment.time = Date.now();
+    checkMomentsStatus();
+    console.log('[Moments Debug] 已强制送达，刷新一下页面看效果');
+};
 
 // ── 情侣空间设置读写 ──────────────────────────────────────────────────────
 async function _loadCsSettings() {
@@ -694,6 +714,7 @@ window.openCsSettings = async function () {
     const minVal     = document.getElementById('cs-dly-min-val');
     const maxVal     = document.getElementById('cs-dly-max-val');
     const saveToggle = document.getElementById('cs-save-img-toggle');
+    const noReplyToggle = document.getElementById('cs-read-no-reply-toggle');
 
     function updateSliderUI() {
         minSlider.value = _csSettings.dlyMin;
@@ -747,6 +768,11 @@ window.openCsSettings = async function () {
             saveToggle.checked = !!_csSettings.savePartnerImg;
             saveToggle.onchange = () => { _csSettings.savePartnerImg = saveToggle.checked; _saveCsSettings(); };
         }
+    }
+
+    if (noReplyToggle) {
+        noReplyToggle.checked = !!_csSettings.allowReadNoReply;
+        noReplyToggle.onchange = () => { _csSettings.allowReadNoReply = noReplyToggle.checked; _saveCsSettings(); };
     }
 
     // ── 壁纸画廊 ──

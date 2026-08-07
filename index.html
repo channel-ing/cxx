@@ -1028,13 +1028,23 @@ html[data-theme="dark"] #cs-transition-overlay{background:radial-gradient(circle
                 <div class="settings-section-title"><i class="fas fa-clock"></i> 互动速度</div>
                 <div class="cs-settings-row">
                     <span class="cs-settings-label">最短等待</span>
-                    <input type="range" class="font-size-slider" id="cs-dly-min-slider" min="5" max="120" step="1" value="5">
+                    <input type="range" class="font-size-slider" id="cs-dly-min-slider" min="1" max="120" step="1" value="5">
                     <span class="cs-settings-val" id="cs-dly-min-val">5分钟</span>
                 </div>
                 <div class="cs-settings-row">
                     <span class="cs-settings-label">最长等待</span>
                     <input type="range" class="font-size-slider" id="cs-dly-max-slider" min="5" max="120" step="1" value="20">
                     <span class="cs-settings-val" id="cs-dly-max-val">20分钟</span>
+                </div>
+                <div class="cs-settings-row cs-settings-toggle-row">
+                    <div>
+                        <div class="cs-settings-label">已读不回</div>
+                        <div class="cs-settings-desc">开启后，Ta评论你的动态、回复你的评论时可能会已读不回</div>
+                    </div>
+                    <label class="cs-toggle-label">
+                        <input type="checkbox" id="cs-read-no-reply-toggle">
+                        <span class="notif-toggle-slider"></span>
+                    </label>
                 </div>
             </div>
 
