@@ -391,7 +391,7 @@
                 '<div style="font-size:16px;font-weight:600;color:var(--text-color,#333);margin-bottom:16px;">' +
                     '<i class="fas fa-cloud-upload-alt"></i>&nbsp;正在迁移本地图片到云端' +
                 '</div>' +
-                '<div id="cs-mig-task" style="font-size:13px;color:var(--text-secondary,#888);margin-bottom:12px;min-height:18px;">准备中…</div>' +
+                '<div id="cs-mig-task" style="font-size:13px;color:var(--text-secondary,#888);margin-bottom:12px;min-height:36px;white-space:pre-line;line-height:1.6;"></div>' +
                 '<div style="height:8px;background:var(--input-bg,#f0f0f0);border-radius:4px;overflow:hidden;margin-bottom:12px;">' +
                     '<div id="cs-mig-bar" style="height:100%;width:0%;background:var(--accent-color,#c5a47e);transition:width .2s ease;"></div>' +
                 '</div>' +
@@ -421,11 +421,71 @@
 
         try {
             var result = await window.CloudMediaMigration.run();
-            taskEl.textContent = '✓ 完成：共 ' + result.total + ' 项，成功 ' + result.migrated + '，失败 ' + result.failed;
-            barEl.style.width = '100%';
+
+            // ==== 迁移完毕后立刻强制同步到云端 ====
+            // 原因：迁移把 base64 替换成 oss:// 写回 localforage，但云端同步是 3 秒防抖，
+            // 如果用户马上切换到另一个浏览器恢复，云端还是旧快照（表情库可能是空的）。
+            // 强制立即同步确保云端在用户看到完成弹窗时已经是最新状态。
+            // 迁移完后先触发陪伴日记的 key 迁移（懒加载，如果用户没打开过日记，
+            // key 还在旧位置，同步快照会丢失日记数据）
+            if (typeof window.reloadCompanionDiary === 'function') {
+                try { await window.reloadCompanionDiary(); } catch (e) {}
+            }
+
+            if (window.CloudSyncEngine && window.CloudSyncEngine.requestSyncNow) {
+                taskEl.textContent = '↑ 正在同步到云端，请勿关闭页面…';
+                barEl.style.width = '100%';
+
+                await new Promise(function (resolve) {
+                    var done = false;
+                    function settle() {
+                        if (!done) { done = true; resolve(); }
+                    }
+                    // 超时兜底：文字同步通常 1-3 秒，给 10 秒余量
+                    var timeout = setTimeout(settle, 10000);
+
+                    // 触发立即同步
+                    window.CloudSyncEngine.requestSyncNow();
+
+                    // 监听同步状态变化：syncing true→false 即完成
+                    var sawSyncing = !!(window.CloudSyncEngine.getSyncStatus().syncing);
+                    window.CloudSyncEngine.onSyncStatusChange(function (st) {
+                        if (done) return;
+                        if (st.syncing) {
+                            sawSyncing = true;
+                            return;
+                        }
+                        // syncing 变 false：如果之前确认已开始同步，则认为完成
+                        if (sawSyncing) {
+                            clearTimeout(timeout);
+                            settle();
+                        }
+                    });
+
+                    // 如果触发时同步已经跑完了（非常快），等 1.5 秒再 resolve
+                    if (!sawSyncing) {
+                        setTimeout(function () {
+                            if (!done && !window.CloudSyncEngine.getSyncStatus().syncing) {
+                                clearTimeout(timeout);
+                                settle();
+                            }
+                        }, 1500);
+                    }
+                });
+            }
+
+            // 显示最终结果
+            var failNote = result.failed > 0
+                ? '\n⚠️ ' + result.failed + ' 项失败，可能是网络问题，可再次运行迁移重试。'
+                : '';
+            taskEl.textContent = '✓ 完成：共 ' + result.total + ' 项，成功 ' + result.migrated + '，失败 ' + result.failed + failNote;
             closeBtn.style.display = '';
             if (typeof showNotification === 'function') {
-                showNotification('图片迁移完成', 'success', 3000);
+                showNotification(
+                    result.failed > 0 ? '迁移完成（有失败项，可重试）' : '图片迁移完成',
+                    'success',
+                    3000
+                );
             }
         } catch (e) {
             taskEl.textContent = '✗ 迁移失败：' + (e && e.message || e);

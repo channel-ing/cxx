@@ -46,34 +46,54 @@
         return (window.APP_PREFIX || '') + 'companionDiary';
     }
     async function loadDiary() {
+        // 保险方案：不依赖 SESSION_ID 是否就绪，直接扫描 localforage 所有 key。
+        // 原因：SESSION_ID 由 core.js 异步初始化，在低端 Android 设备上可能比
+        // DOMContentLoaded 慢几百毫秒，导致 getKey() 返回无 SESSION_ID 的旧 key，
+        // 读到空数据后 _diaryEntries 被清空，日记消失。
+        // 扫描 key 的方式和 cdRec 系统一样，不依赖任何变量，100% 可靠。
         try {
+            const allKeys = await localforage.keys();
+
+            // 找出所有日记相关 key（排除背景 key）
+            const diaryKeys = allKeys.filter(function(k) {
+                return k.indexOf('companionDiary') !== -1
+                    && k.indexOf('DiaryBg') === -1
+                    && k.indexOf('DiaryBgGallery') === -1;
+            });
+
+            // 把所有 key 里的数据全部读出来，按 id 去重合并
+            // 这样能兼容新 key、旧 key、以及任何中间状态
+            const merged = [];
+            const seenIds = new Set();
+            for (var i = 0; i < diaryKeys.length; i++) {
+                const chunk = await localforage.getItem(diaryKeys[i]);
+                if (!Array.isArray(chunk)) continue;
+                for (var j = 0; j < chunk.length; j++) {
+                    const entry = chunk[j];
+                    if (entry && entry.id && !seenIds.has(String(entry.id))) {
+                        seenIds.add(String(entry.id));
+                        merged.push(entry);
+                    }
+                }
+            }
+
+            _diaryEntries = merged;
+
+            // 如果 SESSION_ID 已就绪，把合并后的数据写到正规 key，并清理旧 key
             const newKey = getKey();
             const oldKey = _getOldKey();
-            let data = await localforage.getItem(newKey);
-            // 合并迁移：旧键有数据时，无论新键是否有数据，都合并进来
-            if (newKey !== oldKey) {
-                const oldData = await localforage.getItem(oldKey);
-                if (Array.isArray(oldData) && oldData.length > 0) {
-                    const newData = Array.isArray(data) ? data : [];
-                    // 按 id 去重合并，旧数据优先（旧数据可能更多）
-                    const merged = [...newData];
-                    const existingIds = new Set(newData.map(e => e.id));
-                    for (const entry of oldData) {
-                        if (!existingIds.has(entry.id)) {
-                            merged.push(entry);
-                        }
-                    }
-                    data = merged;
-                    await localforage.setItem(newKey, data);
+            if (newKey !== oldKey && merged.length > 0) {
+                // 检查是否有数据在旧 key 上需要清理
+                const hadOldData = diaryKeys.some(function(k) { return k === oldKey; });
+                if (hadOldData) {
+                    await localforage.setItem(newKey, merged);
                     await localforage.removeItem(oldKey);
-                    console.log('[companion-diary] 日记数据已合并迁移到新键名，共', data.length, '条');
-                    // 合并完立刻推送云端，防止云端旧数据覆盖本地
+                    console.log('[companion-diary] 日记数据已合并迁移到新键名，共', merged.length, '条');
                     if (window.CloudSyncEngine && window.CloudSyncEngine.requestSyncNow) {
                         setTimeout(function() { window.CloudSyncEngine.requestSyncNow(); }, 500);
                     }
                 }
             }
-            _diaryEntries = Array.isArray(data) ? data : [];
         } catch (e) {
             console.warn('[companion-diary] load failed:', e);
             _diaryEntries = [];
@@ -84,6 +104,23 @@
     }
     async function saveDiary() {
         try {
+            // 安全保护：如果内存里是空的，先确认 localforage 里也是空的再写。
+            // 防止任何时序问题导致用空数组覆盖真实数据。
+            if (_diaryEntries.length === 0) {
+                const allKeys = await localforage.keys();
+                const diaryKeys = allKeys.filter(function(k) {
+                    return k.indexOf('companionDiary') !== -1
+                        && k.indexOf('DiaryBg') === -1
+                        && k.indexOf('DiaryBgGallery') === -1;
+                });
+                for (var i = 0; i < diaryKeys.length; i++) {
+                    const existing = await localforage.getItem(diaryKeys[i]);
+                    if (Array.isArray(existing) && existing.length > 0) {
+                        console.warn('[companion-diary] 拒绝用空数组覆盖现有日记数据，跳过保存');
+                        return;
+                    }
+                }
+            }
             await localforage.setItem(getKey(), _diaryEntries);
         } catch (e) {
             console.warn('[companion-diary] save failed:', e);
@@ -115,6 +152,23 @@
             return;
         }
         _diaryEntries.unshift(rec);
+        await saveDiary();
+        window._companionDiaryEntries = _diaryEntries;
+    };
+
+    // 供导入逻辑调用：合并写入陪伴日记（以 id 去重，不覆盖已有条目）
+    window._setCompanionDiaryEntries = async function(entries) {
+        if (!Array.isArray(entries) || entries.length === 0) return;
+        await loadDiary(); // 确保内存是最新状态
+        const existingIds = new Set(_diaryEntries.map(function(e) { return String(e.id); }));
+        for (var i = 0; i < entries.length; i++) {
+            var e = entries[i];
+            if (!existingIds.has(String(e.id))) {
+                _diaryEntries.push(e);
+                existingIds.add(String(e.id));
+            }
+        }
+        _diaryEntries.sort(function(a, b) { return b.ts - a.ts; });
         await saveDiary();
         window._companionDiaryEntries = _diaryEntries;
     };

@@ -55,7 +55,17 @@
         'customIntros', 'customEmojis',
         'customReplyGroups', 'customPokeGroups', 'customStatusGroups',
         // 纪念日
-        'anniversaries',
+        'anniversaries', 'annCoverBg_',
+        // 相册（相册列表/照片归属/收藏/回收站，图片本身是 oss:// 引用，体积小）
+        'albumData',
+        // 动态（贴文/评论/点赞，图片有清洗逻辑见下方 _collectTextData）
+        'momentsData',
+        // 电影院（约定/待看清单/观看历史/协商/梦角主动邀请，全是文字数字，没有图片）
+        '_cinemaAppt', '_cinemaWatchlist', '_cinemaHistory', '_cinemaNego', '_cinemaPartnerInvite',
+        // 情侣空间设置（等待延迟/是否保存对方图片，纯文字数字）
+        'csSpaceSettings',
+        // 情侣空间壁纸（当前壁纸 + 壁纸库，图片有清洗逻辑见下方 _collectTextData）
+        'csWallpaper', 'csWallpaperGallery',
         // 心情手账（不含图片）
         'moodCalendar', 'customMoodOptions', 'moodTrash',
         // 主题人设
@@ -335,6 +345,75 @@
                             payload.indexedDB[k] = v; // oss:// 引用：允许同步
                         }
                         // base64 或其他格式：跳过（不进 payload）
+                        continue;
+                    }
+                    // 阶段五：动态（贴文配图 + 评论图片，可能是 base64 或 oss://）
+                    // 逻辑跟贴纸库一致：oss:// 引用正常同步，base64 大图跳过（等迁移工具处理），
+                    // 文字/点赞/评论文字等结构信息不受影响，一起同步
+                    if (k.indexOf('momentsData') !== -1 && v && typeof v === 'object' && Array.isArray(v.posts)) {
+                        var sanitizedMoments = Object.assign({}, v);
+                        sanitizedMoments.posts = v.posts.map(function (post) {
+                            if (!post || typeof post !== 'object') return post;
+                            var copyPost = Object.assign({}, post);
+                            if (Array.isArray(post.images)) {
+                                copyPost.images = post.images.filter(function (img) {
+                                    if (typeof img !== 'string') return true;
+                                    if (img.indexOf('oss://') === 0) return true;
+                                    if (img.indexOf('data:image') === 0) return false; // 跳过，等迁移
+                                    return true;
+                                });
+                            }
+                            if (Array.isArray(post.comments)) {
+                                copyPost.comments = post.comments.map(function (cmt) {
+                                    if (!cmt || typeof cmt !== 'object') return cmt;
+                                    if (typeof cmt.image === 'string' && cmt.image.indexOf('data:image') === 0) {
+                                        var copyCmt = Object.assign({}, cmt);
+                                        copyCmt.image = null; // base64 跳过，等迁移；文字/点赞不受影响
+                                        return copyCmt;
+                                    }
+                                    return cmt;
+                                });
+                            }
+                            return copyPost;
+                        });
+                        payload.indexedDB[k] = sanitizedMoments;
+                        continue;
+                    }
+                    // 阶段六：情侣空间壁纸库（同 backgroundGallery 逻辑：有云端引用换成 oss://，
+                    // 纯本地 base64 没有备份的用缩略图兜底，否则跳过）
+                    if (k.indexOf('csWallpaperGallery') !== -1 && Array.isArray(v)) {
+                        var sanitizedWallpaper = [];
+                        v.forEach(function (bg) {
+                            if (!bg || typeof bg !== 'object') { sanitizedWallpaper.push(bg); return; }
+                            if (typeof bg.value !== 'string' || (bg.value.indexOf('data:image') !== 0 && bg.value.indexOf('oss://') !== 0)) {
+                                sanitizedWallpaper.push(bg);
+                                return;
+                            }
+                            if (bg.value.indexOf('oss://') === 0) {
+                                sanitizedWallpaper.push(bg); // 已经是云端引用（新逻辑上传后的样子）
+                                return;
+                            }
+                            if (bg.cloudUrl && bg.cloudUrl.indexOf('oss://') === 0) {
+                                var wpCopy = Object.assign({}, bg);
+                                wpCopy.value = bg.cloudUrl;
+                                delete wpCopy.cloudUrl;
+                                sanitizedWallpaper.push(wpCopy);
+                                return;
+                            }
+                            // 纯本地 base64、还没搬完：缩略图兜底，否则跳过（等迁移工具处理）
+                            if (bg.thumbnail) {
+                                var wpCopy2 = Object.assign({}, bg);
+                                wpCopy2.value = bg.thumbnail;
+                                sanitizedWallpaper.push(wpCopy2);
+                            }
+                        });
+                        payload.indexedDB[k] = sanitizedWallpaper;
+                        continue;
+                    }
+                    // 阶段六：情侣空间当前壁纸（单值，同 chatBackground 逻辑）
+                    if (k.indexOf('csWallpaper') !== -1 && k.indexOf('csWallpaperGallery') === -1) {
+                        if (typeof v === 'string' && v.indexOf('data:image') === 0) continue; // base64 跳过，等迁移
+                        payload.indexedDB[k] = v;
                         continue;
                     }
                     payload.indexedDB[k] = v;

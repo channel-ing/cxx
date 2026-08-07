@@ -494,7 +494,7 @@ async function importAllData(file) {
             {
                 id: 'ann',
                 label: '纪念日',
-                indexedDBNeedles: ['anniversaries'],
+                indexedDBNeedles: ['anniversaries', 'annCoverBg_', 'annMeetOverride', 'annPinnedId'],
                 localStorageNeedles: []
             },
             {
@@ -527,6 +527,18 @@ async function importAllData(file) {
                 label: '真实语音配置',
                 indexedDBNeedles: ['favAudio_', '_favAudio_'],
                 localStorageNeedles: ['voiceTtsConfig']
+            },
+            {
+                id: 'moments',
+                label: '动态',
+                indexedDBNeedles: ['momentsData', 'csSpaceSettings', 'csWallpaper', 'csWallpaperGallery'],
+                localStorageNeedles: []
+            },
+            {
+                id: 'cinema',
+                label: '电影院',
+                indexedDBNeedles: ['_cinemaAppt', '_cinemaWatchlist', '_cinemaHistory', '_cinemaNego', '_cinemaPartnerInvite'],
+                localStorageNeedles: []
             }
         ];
 

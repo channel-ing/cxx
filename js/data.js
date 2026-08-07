@@ -106,6 +106,7 @@
         +         '<div class="dm-drawer-btn-text"><div class="dm-drawer-btn-title">从文件恢复</div><div class="dm-drawer-btn-desc">选择之前导出的备份文件</div></div>'
         +       '</button>'
         +     '</div>'
+        +     '<div id="dm-drawer-full-notice"></div>'
         +     '<button class="dm-drawer-cancel" id="dm-drawer-full-cancel">取消</button>'
         +   '</div>'
         + '</div>';
@@ -296,7 +297,21 @@
         });
 
         var tileFullBackup = mc.querySelector('#dm-tile-full-backup');
-        if (tileFullBackup) tileFullBackup.addEventListener('click', function () { openDrawer('dm-drawer-full'); });
+        if (tileFullBackup) tileFullBackup.addEventListener('click', function () {
+            openDrawer('dm-drawer-full');
+            var notice = document.getElementById('dm-drawer-full-notice');
+            if (notice) {
+                var isCloudConnected = window.CloudSync && typeof window.CloudSync.isConnected === 'function' && window.CloudSync.isConnected();
+                if (isCloudConnected) {
+                    notice.innerHTML = '<div style="margin:12px 0 4px;padding:10px 12px;background:rgba(197,164,126,0.12);border:1px solid rgba(197,164,126,0.35);border-radius:10px;font-size:12px;color:var(--text-secondary);line-height:1.6;">'
+                        + '<i class="fas fa-circle-info" style="color:var(--accent-color);margin-right:5px;"></i>'
+                        + '已启用云端存储：全量备份<b>不包含</b>背景图、表情包、聊天图片、收藏语音等媒体文件，这些文件仅存储在云端。文字类数据（聊天记录、字卡回复库、陪伴日记、心情手账、纪念日/倒计时、主题配色）可通过「聊天记录 → 选择导出」单独备份。'
+                        + '</div>';
+                } else {
+                    notice.innerHTML = '';
+                }
+            }
+        });
 
         var tileChatBackup = mc.querySelector('#dm-tile-chat-backup');
         if (tileChatBackup) tileChatBackup.addEventListener('click', function () { openDrawer('dm-drawer-chat'); });
