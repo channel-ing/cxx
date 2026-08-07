@@ -15,7 +15,7 @@ const _M_DLY_MAX = 20 * 60 * 1000;
 const _CS_SETTINGS_KEY = 'csSpaceSettings';
 
 // 情侣空间设置（默认值）
-let _csSettings = { dlyMin: 5, dlyMax: 20, savePartnerImg: false, allowReadNoReply: false, readNoReplyChance: 0.2, cmtCombineCards: false };
+let _csSettings = { dlyMin: 5, dlyMax: 20, savePartnerImg: false, allowReadNoReply: false, readNoReplyChance: 0.2, cmtCombineCards: false, emojiMixEnabled: false };
 
 // 情侣空间"已读不回"判定：关闭开关时必回；开启后按 readNoReplyChance 概率跳过。
 // 统一给"梦角评论新动态"和"梦角回复用户评论"这两处共用。
@@ -23,6 +23,18 @@ function _mShouldReply() {
     if (!_csSettings.allowReadNoReply) return true;
     const chance = Math.max(0, Math.min(1, Number(_csSettings.readNoReplyChance) || 0));
     return Math.random() >= chance;
+}
+
+// 情侣空间"表情混入"：开关打开且表情库不为空时，20%概率把一个表情符号混进文字前面或后面。
+// 跟主聊天"表情混入消息"是完全独立的开关，互不影响，但复用同一个 customEmojis 表情库。
+function _mMixEmoji(text) {
+    if (!text) return text; // 没有文字内容（比如纯贴纸）不需要混入
+    if (!_csSettings.emojiMixEnabled) return text;
+    const pool = window.customEmojis || (typeof customEmojis !== 'undefined' ? customEmojis : []);
+    if (!pool || !pool.length) return text;
+    if (Math.random() >= 0.2) return text;
+    const emoji = pool[Math.floor(Math.random() * pool.length)];
+    return Math.random() < 0.5 ? emoji + ' ' + text : text + ' ' + emoji;
 }
 
 const _mDly   = () => {
@@ -40,7 +52,7 @@ function _mPostText() {
     if (!pool.length) return null;
     let t = ''; const n = 3 + Math.floor(Math.random() * 3);
     for (let i = 0; i < n; i++) { const s = pool[Math.floor(Math.random()*pool.length)]; t += s + (Math.random()<.2?'！':Math.random()<.2?'……':'。'); }
-    return t;
+    return _mMixEmoji(t);
 }
 function _mPickStickers() {
     if (Math.random() >= 0.40) return [];
@@ -57,10 +69,13 @@ function _mCmtContent() {
     const hasSticker = stickerPool.length > 0;
     const randSticker = () => stickerPool[Math.floor(Math.random() * stickerPool.length)];
     const randText   = () => {
-        if (!_csSettings.cmtCombineCards) return textPool[Math.floor(Math.random() * textPool.length)]; // 开关关闭：老效果，只抽1句
-        let t = ''; const n = 1 + Math.floor(Math.random() * 3); // 开关打开：1~3句拼接，跟发动态的拼句逻辑一致，但句数少一点
-        for (let i = 0; i < n; i++) { const s = textPool[Math.floor(Math.random()*textPool.length)]; t += s + (Math.random()<.2?'！':Math.random()<.2?'……':'。'); }
-        return t;
+        let t;
+        if (!_csSettings.cmtCombineCards) { t = textPool[Math.floor(Math.random() * textPool.length)]; } // 开关关闭：老效果，只抽1句
+        else {
+            t = ''; const n = 1 + Math.floor(Math.random() * 3); // 开关打开：1~3句拼接，跟发动态的拼句逻辑一致，但句数少一点
+            for (let i = 0; i < n; i++) { const s = textPool[Math.floor(Math.random()*textPool.length)]; t += s + (Math.random()<.2?'！':Math.random()<.2?'……':'。'); }
+        }
+        return _mMixEmoji(t);
     };
 
     if (!hasText && !hasSticker) return null;  // 没有可用内容，不回复
@@ -725,6 +740,7 @@ window.openCsSettings = async function () {
     const saveToggle = document.getElementById('cs-save-img-toggle');
     const noReplyToggle = document.getElementById('cs-read-no-reply-toggle');
     const combineToggle = document.getElementById('cs-cmt-combine-toggle');
+    const emojiMixToggle = document.getElementById('cs-emoji-mix-toggle');
 
     function updateSliderUI() {
         minSlider.value = _csSettings.dlyMin;
@@ -788,6 +804,11 @@ window.openCsSettings = async function () {
     if (combineToggle) {
         combineToggle.checked = !!_csSettings.cmtCombineCards;
         combineToggle.onchange = () => { _csSettings.cmtCombineCards = combineToggle.checked; _saveCsSettings(); };
+    }
+
+    if (emojiMixToggle) {
+        emojiMixToggle.checked = !!_csSettings.emojiMixEnabled;
+        emojiMixToggle.onchange = () => { _csSettings.emojiMixEnabled = emojiMixToggle.checked; _saveCsSettings(); };
     }
 
     // ── 壁纸画廊 ──
