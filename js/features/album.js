@@ -63,7 +63,11 @@ function _cleanTrash() {
 }
 
 // ─── 动态同步（moments.js 发帖后调用） ───
-window._albumSyncMomentsPost = function(postId, images, videoSrc, videoCover) {
+window._albumSyncMomentsPost = async function(postId, images, videoSrc, videoCover) {
+    // 之前这里没有保证相册数据已经加载过——如果用户这次打开App全程没点开过"相册"tab，
+    // _albumDataLoaded 就还是false，下面的saveAlbumData()会被安全保护拦下来，图片同步会被静默跳过。
+    // 所以这里先确保加载过一次，不管调用方是不是先点开过相册页面。
+    if (!_albumDataLoaded) await loadAlbumData();
     let changed = false;
     if (images && images.length) {
         images.forEach(src => {
@@ -81,7 +85,7 @@ window._albumSyncMomentsPost = function(postId, images, videoSrc, videoCover) {
             sourcePostId:postId, isVideo:true, videoSrc });
         changed = true;
     }
-    if (changed) saveAlbumData();
+    if (changed) await saveAlbumData();
 };
 
 // ─── 收藏 toggle ───
