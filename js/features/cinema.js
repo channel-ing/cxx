@@ -993,28 +993,14 @@
         if (!grid) return;
         grid.innerHTML = '';
 
-        var presets = (typeof CONSTANTS !== 'undefined' && CONSTANTS.REPLY_EMOJIS) ? CONSTANTS.REPLY_EMOJIS : [];
-        var customs = (typeof customEmojis !== 'undefined' && customEmojis) ? customEmojis : [];
-        // 用户自己添加的表情库（不是梦角的）
+        // 用户自己添加的表情库（不是梦角的）——"我的表情"这个面板只应该显示这个，
+        // 之前误把 customEmojis（专门给梦角用的表情符号库）和预设表情也塞了进来，已经去掉
         var myStickers = (typeof myStickerLibrary !== 'undefined' && myStickerLibrary) ? myStickerLibrary : [];
 
-        if (!presets.length && !customs.length && !myStickers.length) {
+        if (!myStickers.length) {
             grid.innerHTML = '<div class="cinema-sticker-empty">暂无表情，去主聊天页的"我的表情库"里添加吧</div>';
             return;
         }
-
-        presets.concat(customs).forEach(function (emoji) {
-            var item = document.createElement('div');
-            item.className = 'cinema-sticker-item';
-            item.innerHTML = '<span>' + _escapeHtml(emoji) + '</span>';
-            item.onclick = function () {
-                var input = document.getElementById('cinema-input-field');
-                if (input) { input.value += emoji; input.focus(); }
-                var picker = document.getElementById('cinema-sticker-picker');
-                if (picker) picker.classList.remove('active');
-            };
-            grid.appendChild(item);
-        });
 
         myStickers.forEach(function (src) {
             var item = document.createElement('div');
@@ -1036,6 +1022,16 @@
                 if (picker) picker.classList.remove('active');
             };
             grid.appendChild(item);
+        });
+
+        // 用JS直接量出格子实际宽度，把高度钉成一样的数字，强制变成正方形——
+        // 不再依赖任何CSS的自动计算技巧（试过两次都在这个面板的布局环境下失效），这样不会再有出错的空间
+        requestAnimationFrame(function () {
+            var items = grid.querySelectorAll('.cinema-sticker-item');
+            items.forEach(function (el) {
+                var w = el.offsetWidth;
+                if (w > 0) el.style.height = w + 'px';
+            });
         });
     }
     function _bindInputBarListeners() {
