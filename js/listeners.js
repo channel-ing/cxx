@@ -3152,8 +3152,15 @@ playlist.style.top = (rect.top + (player.classList.contains('collapsed') ? 65 : 
             DOMElements.chatContainer.addEventListener('scroll', () => {
                 const container = DOMElements.chatContainer;
                 if (!container) return;
-                if (container.scrollTop < 50 && !isLoadingHistory && messages.length > displayedMessageCount) {
+                const hasMoreOlder = msgViewMode === 'window' ? msgWinStart > 0 : (messages.length > displayedMessageCount);
+                if (container.scrollTop < 50 && !isLoadingHistory && hasMoreOlder) {
                     if (typeof loadMoreHistory === 'function') loadMoreHistory();
+                }
+                if (msgViewMode === 'window' && !isLoadingFuture && msgWinEnd < messages.length) {
+                    const distanceFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
+                    if (distanceFromBottom < 50) {
+                        if (typeof loadMoreFuture === 'function') loadMoreFuture();
+                    }
                 }
             });
 

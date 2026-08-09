@@ -246,11 +246,11 @@ html[data-theme="dark"] #cs-transition-overlay{background:radial-gradient(circle
                     <span id="env-entry-badge" style="display:none;position:absolute;top:3px;right:3px;width:7px;height:7px;background:var(--accent-color);border-radius:50%;border:1.5px solid var(--primary-bg);pointer-events:none;"></span>
                 </button>
                 <button id="companion-btn" class="action-btn" title="陪伴"><i class="fas fa-hand-holding-heart"></i></button>
+                <button id="daily-greeting-btn" class="action-btn" title="今日公告" onclick="reopenDailyGreeting()"><i class="fas fa-newspaper" style="font-size:16px;"></i></button>
                 <button id="moments-header-btn" class="action-btn" title="情侣空间" onclick="openMomentsWithTransition()" style="position:relative;">
                     <i class="ti ti-home-heart" style="font-size:19px;"></i>
                     <span id="moments-header-badge" style="display:none;position:absolute;top:3px;right:3px;width:7px;height:7px;background:var(--accent-color);border-radius:50%;border:1.5px solid var(--primary-bg);pointer-events:none;"></span>
                 </button>
-                <button id="daily-greeting-btn" class="action-btn" title="今日公告" onclick="reopenDailyGreeting()"><i class="fas fa-newspaper" style="font-size:16px;"></i></button>
                 <button id="settings-btn" class="action-btn" title="设置"><i class="fas fa-cog" style="font-size:16px;"></i></button>
             </div>
              <div class="user-info">
@@ -279,6 +279,12 @@ html[data-theme="dark"] #cs-transition-overlay{background:radial-gradient(circle
 
         <div class="chat-container" id="chat-container">
     </div>
+    <div class="future-loader" id="future-loader" style="display:none;">
+        <div class="history-spinner"></div>
+    </div>
+    <button id="back-to-latest-btn" onclick="window._backToLatestMessages&&window._backToLatestMessages()">
+        <i class="fas fa-arrow-down"></i><span id="back-to-latest-label"></span>
+    </button>
     <div class="empty-state" id="empty-state" style="display:none;position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:20px;width:100%;pointer-events:none;z-index:1;">
             <div style="position:relative;margin-bottom:20px;">
                 <i class="fas fa-heart" style="font-size:52px;opacity:0.55;color:var(--accent-color);"></i>
@@ -2468,6 +2474,11 @@ html[data-theme="dark"] #cs-transition-overlay{background:radial-gradient(circle
                         <span style="font-size:11px;color:var(--text-secondary);">至</span>
                         <input type="date" id="msg-search-date-to" style="padding:5px 8px;border:1px solid var(--border-color);border-radius:8px;font-size:12px;background:var(--primary-bg);color:var(--text-primary);outline:none;" oninput="window._runMsgSearch && window._runMsgSearch()">
                         <button onclick="document.getElementById('msg-search-input').value='';document.getElementById('msg-search-date-from').value='';document.getElementById('msg-search-date-to').value='';window._runMsgSearch&&window._runMsgSearch();" style="padding:5px 10px;border:1px solid var(--border-color);border-radius:8px;font-size:12px;background:var(--secondary-bg);color:var(--text-secondary);cursor:pointer;font-family:var(--font-family);">重置</button>
+                    </div>
+                    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:8px;padding-top:8px;border-top:1px solid var(--border-color);">
+                        <span style="font-size:11px;color:var(--text-secondary);">跳转到：</span>
+                        <input type="date" id="msg-jump-date" style="padding:5px 8px;border:1px solid var(--border-color);border-radius:8px;font-size:12px;background:var(--primary-bg);color:var(--text-primary);outline:none;">
+                        <button onclick="window._jumpToDate && window._jumpToDate()" class="modal-btn modal-btn-primary" style="padding:5px 12px;font-size:12px;">跳转</button>
                     </div>
                 </div>
                 <div id="msg-search-results" style="max-height:52vh;overflow-y:auto;margin-top:10px;margin-left:-4px;margin-right:-4px;"></div>

@@ -10812,12 +10812,12 @@
     display: none !important;
 }
 
-/* 顶部栏按钮顺序：信箱 · 陪伴 · 情侣空间 · 公告 · 设置 */
+/* 顶部栏按钮顺序：信箱 · 陪伴 · 公告 · 情侣空间 · 设置 */
 .header-actions { display: flex; }
 #envelope-header-btn  { order: 1; }
 #companion-btn        { order: 2; }
-#moments-header-btn   { order: 3; }
-#daily-greeting-btn   { order: 4; }
+#daily-greeting-btn   { order: 3; }
+#moments-header-btn   { order: 4; }
 #settings-btn         { order: 5; }
 
 /* 底部输入区：隐藏让对方继续说、批量发送、发送按钮 */
@@ -13671,4 +13671,48 @@ body #user-sticker-picker .empty-sticker-tip {
 }
 .ann-list-container {
     gap: 2px;
+}
+
+/* ── 聊天记录"跳转到某条消息+双向浏览历史"功能新增样式（只追加，不改动上面任何原有规则）── */
+.future-loader {
+    position: absolute;
+    bottom: 10px;
+    left: 0;
+    width: 100%;
+    height: 30px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 5;
+    pointer-events: none;
+}
+
+#back-to-latest-btn {
+    position: absolute;
+    right: 14px;
+    bottom: 84px;
+    z-index: 20;
+    display: none;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 14px;
+    border-radius: 20px;
+    border: none;
+    background: var(--secondary-bg);
+    color: var(--text-primary);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.18);
+    cursor: pointer;
+    font-size: 12px;
+    white-space: nowrap;
+}
+
+#back-to-latest-btn.has-new-msg {
+    background: var(--accent-color);
+    color: #fff;
+}
+
+#back-to-latest-label {
+    max-width: 140px;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
