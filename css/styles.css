@@ -12149,6 +12149,11 @@ body #user-sticker-picker .empty-sticker-tip {
 /* ── 相册列表 ── */
 .al-albums-grid {
     display: grid; grid-template-columns: 1fr 1fr;
+    align-content: start; /* 不要把容器多余的空白高度摊派给每一行 */
+    align-items: start;   /* 每张卡片按自己实际需要的高度显示，不被拉伸/压缩成跟同一行别的卡片一样高 */
+    grid-auto-rows: min-content; /* 关键修复：这个容器之前被外层限制了总高度，导致每行被迫平分这个不够用的高度、内容溢出叠到下一行。
+                                     这行强制"每一行按内容实际需要的最小高度来算"，不会再被总高度不够而压缩，
+                                     相册数量多的话会正常触发这个容器自己的上下滚动，不影响正常使用 */
     gap: 12px; padding: 14px;
 }
 .al-album-card {
@@ -12160,7 +12165,15 @@ body #user-sticker-picker .empty-sticker-tip {
 }
 .al-album-card:active { transform: scale(0.97); }
 .al-new-card { border: 1.5px dashed color-mix(in srgb, var(--accent-color) 40%, transparent); background: rgba(var(--accent-color-rgb),.03); }
-.al-cover { width: 100%; aspect-ratio: 1; overflow: hidden; }
+.al-cover {
+    width: 100%; overflow: hidden; position: relative;
+}
+.al-cover::before {
+    content: ''; display: block; padding-top: 100%; /* 用百分比padding撑高度，比 aspect-ratio 更稳，避免跟网格自动算行高时产生冲突导致行与行重叠 */
+}
+.al-cover > img, .al-cover > .al-cover-empty {
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+}
 .al-new-cover {
     width: 100%; aspect-ratio: 1; display: flex;
     align-items: center; justify-content: center;
