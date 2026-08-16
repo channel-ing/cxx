@@ -1501,7 +1501,7 @@ function _isCaughtUpToLatest() {
 
 const addMessage = (message) => {
     if (!(message.timestamp instanceof Date)) message.timestamp = new Date(message.timestamp);
-    
+
     const container = DOMElements.chatContainer;
     const wasEmpty = messages.length === 0;
 
@@ -1556,6 +1556,9 @@ const addMessage = (message) => {
             } else {
                 container.appendChild(newMsgFragment);
             }
+            // 修复消息重复bug：这里直接把新消息插入了DOM，displayedMessageCount 必须同步+1，
+            // 否则这个计数器会跟实际显示的消息数量脱节，导致下次往上翻页时把已显示过的消息误判成"还没显示"而重复插入
+            if (msgViewMode !== 'window') displayedMessageCount++;
         }
         newMsgCountWhileBrowsing++;
         if (typeof window._updateNewMsgIndicator === 'function') window._updateNewMsgIndicator();
@@ -1603,6 +1606,8 @@ const addMessage = (message) => {
     } else {
         container.appendChild(newMsgFragment);
     }
+    // 修复消息重复bug：同上，正常追加到底部时也要同步+1，理由同前面那处注释
+    if (msgViewMode !== 'window') displayedMessageCount++;
 
     requestAnimationFrame(() => {
         container.scrollTop = container.scrollHeight;
