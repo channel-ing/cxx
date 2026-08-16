@@ -186,7 +186,7 @@
 
 (function() {
     var KEY = 'keepaliveAudioEnabled';
-    var SRC = 'https://img.heliar.top/file/1772885159972_silence.m4a';
+    var SRC = 'assets/audio/silence.mp3';
     var _audio = null;
     var _unlockBound = false;
 
@@ -200,6 +200,7 @@
         _audio.preload = 'auto';
         _audio.addEventListener('play',  function(){ _setUI(true);  });
         _audio.addEventListener('pause', function(){ _setUI(false); });
+        window._debugKeepaliveAudio = _audio;
         return _audio;
     }
 
