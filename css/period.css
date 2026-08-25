@@ -1,0 +1,96 @@
+/* ══════════════════════════════════════════
+   经期记录 —— 高级功能独立弹窗样式
+   （日历/统计/症状/留言卡等核心样式已在 styles.css 里写好，
+   都是通用 .pd-xxx class，直接复用即可，这里只补：
+   1. 出血量配色变量的挂载点（原来挂在 #cs-panel-period，
+      现在功能搬到 #period-modal，得重新挂一次）
+   2. period-modal 本身的弹窗尺寸/滚动，照抄 #stats-modal 的模板
+   3. 长按提示小字的样式
+   ══════════════════════════════════════════ */
+
+#period-modal { --pd-flow-rgb: 210, 80, 100; }
+
+#period-modal .modal-content {
+    display: flex;
+    flex-direction: column;
+    max-height: 85vh;
+    padding: 20px;
+    overflow: hidden;
+}
+
+#period-modal .modal-title {
+    flex-shrink: 0;
+    margin-bottom: 15px;
+}
+
+#period-body {
+    flex: 1;
+    overflow-y: auto;
+    min-height: 0;
+    padding-right: 5px;
+    margin-bottom: 15px;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+#period-body::-webkit-scrollbar { display: none; }
+
+#period-modal .modal-buttons {
+    flex-shrink: 0;
+    margin-top: 0;
+    padding-top: 10px;
+    border-top: 1px solid var(--border-color);
+    display: flex;
+    justify-content: flex-end;
+}
+
+/* ══════════════════════════════════════════
+   自定义回复 —— 氛围感配置的子tab按钮横向滚动
+   （新增"经期"分类后，5个tab按原来flex:1挤压排布会太窄，
+   改成按钮固定宽度、放不下就左右滑动）
+   ══════════════════════════════════════════ */
+.reply-tabs {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+.reply-tabs::-webkit-scrollbar { display: none; }
+.reply-tab-btn {
+    flex: 0 0 auto;
+    padding: 10px 18px;
+    white-space: nowrap;
+}
+
+.pd-cal-cell.pd-blank { cursor: default; pointer-events: none; }
+
+/* 只读日详情弹窗：右上角❌关闭 */
+.pd-day-modal-content { position: relative; }
+.pd-day-close-x {
+    position: absolute; top: 14px; right: 14px;
+    width: 28px; height: 28px; border-radius: 50%;
+    border: none; background: rgba(var(--accent-color-rgb), 0.08);
+    color: var(--text-secondary); font-size: 13px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
+.pd-day-close-x:active { background: rgba(var(--accent-color-rgb), 0.18); }
+
+/* 只读日详情弹窗：缺省状态 */
+.pd-day-empty {
+    display: flex; flex-direction: column; align-items: center; gap: 8px;
+    padding: 24px 0 12px;
+    color: var(--text-secondary);
+}
+.pd-day-empty i { font-size: 26px; opacity: 0.3; }
+.pd-day-empty div { font-size: 13px; opacity: 0.6; }
+
+.pd-longpress-hint {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: var(--text-secondary);
+    opacity: 0.65;
+    padding: 0 2px 10px;
+}
+.pd-longpress-hint i { font-size: 10px; }

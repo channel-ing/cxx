@@ -262,7 +262,9 @@ if (myStickerQuickUpload) {
                         console.warn('[cloud-media] 我的贴纸上传失败，降级本地', upErr);
                     }
                 }
-                newStickers.push(toStore);
+                // 归到"当前正在看的分组"，不是无脑存进默认分组
+                var _targetGroupId = (typeof window._myStickerActiveGroup !== 'undefined') ? window._myStickerActiveGroup : null;
+                newStickers.push({ id: 'stk_' + Date.now() + '_' + ok, src: toStore, groupId: _targetGroupId, addedAt: Date.now(), groupJoinedAt: Date.now() });
                 ok++;
             } catch(err) { fail++; }
         }

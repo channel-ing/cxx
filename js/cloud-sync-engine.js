@@ -52,10 +52,14 @@
         'envelopeData', 'pending_envelope',
         // 回复 / 氛围
         'customReplies', 'customPokes', 'customStatuses', 'customMottos',
-        'customIntros', 'customEmojis',
+        'customIntros', 'customEmojis', 'customPeriodCare',
         'customReplyGroups', 'customPokeGroups', 'customStatusGroups',
+        // 经期记录（日历标记、每日打卡、梦角留言状态）
+        'periodData',
+        // 调查问卷（我问梦角/梦角问我，图片选项是 oss:// 引用或未配置OSS时的本地 base64，体积小）
+        'surveyData',
         // 纪念日
-        'anniversaries', 'annCoverBg_',
+        'anniversaries', 'annCoverBg_', 'annMeetOverride', 'annPinnedId',
         // 相册（相册列表/照片归属/收藏/回收站，图片本身是 oss:// 引用，体积小）
         'albumData',
         // 动态（贴文/评论/点赞，图片有清洗逻辑见下方 _collectTextData）
@@ -71,7 +75,7 @@
         // 主题人设
         'partnerPersonas',
         // 贴纸库（文字索引，实际图片阶段三B处理）
-        'stickerLibrary', 'myStickerLibrary',
+        'stickerLibrary', 'myStickerLibrary', 'myStickerGroups',
         // 陪伴日记文字
         'companionData', 'companionDiary',
         // 信件
@@ -81,19 +85,23 @@
         // 阶段三B：日记背景（同上，云端引用后可同步；有 payload 保护过滤 base64）
         'companionDiaryBg', 'companionDiaryBgGallery',
         // 阶段四：收藏语音（值是 oss:// 引用，体积小可以同步；有 sanitize 过滤 base64）
-        'favAudio_'
+        'favAudio_',
+        // 头像（配置了云端、迁移过的话是 oss:// 引用，体积小可以同步；有 sanitize 过滤本地 base64，
+        // 没迁移过的老数据不会硬塞大 base64 进同步包，换设备后跑一下"迁移到云端"补上就行）
+        'partnerAvatar', 'myAvatar'
     ];
 
     // 媒体类键（大 base64，不走文字同步 payload）
     var SESSION_MEDIA_NEEDLES = [
-        'partnerAvatar', 'myAvatar'
     ];
 
     // 2) 全局键（无 SESSION_ID 前缀）- 文字类，需要同步
     var GLOBAL_TEXT_KEYS = [
         APP_PREFIX_STR + 'sessionList',    // 梦角列表（最重要！）
         APP_PREFIX_STR + 'customThemes',   // 主题
-        APP_PREFIX_STR + 'themeSchemes'    // 主题方案
+        APP_PREFIX_STR + 'themeSchemes',   // 主题方案
+        APP_PREFIX_STR + 'customSongs',    // 悬浮播放器歌单（不分账号，全局共享）
+        APP_PREFIX_STR + 'callBgImageData' // 通话背景图（不分账号，全局共享；有 sanitize 过滤本地 base64）
     ];
 
     // 不同步的全局键（系统状态，不属于用户数据）
@@ -260,6 +268,20 @@
                         // chatBackground 本地存 base64，不同步到云端（体积大，换设备从 gallery 恢复）
                         if (typeof v === 'string' && v.indexOf('data:image') === 0) continue;
                         // 颜色/渐变等非图片类型：正常同步
+                        payload.indexedDB[k] = v;
+                        continue;
+                    }
+                    // 头像（partnerAvatar / myAvatar，单值 string）：oss:// 已迁移的正常同步，
+                    // 本地存量 base64 的先跳过，不塞大图进同步包，避免payload爆炸；
+                    // 用户手动跑一次"迁移到云端"补齐之后，下次同步就会带上了
+                    if (k.indexOf('partnerAvatar') !== -1 || k.indexOf('myAvatar') !== -1) {
+                        if (typeof v === 'string' && v.indexOf('data:image') === 0) continue;
+                        payload.indexedDB[k] = v;
+                        continue;
+                    }
+                    // 通话背景图（全局key，不分账号）：同上，本地base64跳过，oss://正常同步
+                    if (k.indexOf('callBgImageData') !== -1) {
+                        if (typeof v === 'string' && v.indexOf('data:image') === 0) continue;
                         payload.indexedDB[k] = v;
                         continue;
                     }

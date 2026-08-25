@@ -482,14 +482,32 @@ async function importAllData(file) {
             {
                 id: 'replies',
                 label: '回复 / 拍一拍 / 氛围',
-                indexedDBNeedles: ['customReplies', 'customPokes', 'customStatuses', 'customMottos', 'customIntros', 'customEmojis', 'customReplyGroups', 'customPokeGroups', 'customStatusGroups'],
+                indexedDBNeedles: ['customReplies', 'customPokes', 'customStatuses', 'customMottos', 'customIntros', 'customEmojis', 'customPeriodCare', 'customReplyGroups', 'customPokeGroups', 'customStatusGroups'],
                 localStorageNeedles: ['disabledReplyItems', 'pokeSym_my', 'pokeSym_partner', 'pokeSym_my_custom', 'pokeSym_partner_custom']
             },
             {
                 id: 'stickers',
                 label: '表情库（贴纸）',
-                indexedDBNeedles: ['stickerLibrary', 'myStickerLibrary'],
+                indexedDBNeedles: ['stickerLibrary', 'myStickerLibrary', 'myStickerGroups'],
                 localStorageNeedles: ['disabledStickerItems']
+            },
+            {
+                id: 'music',
+                label: '自定义歌单',
+                indexedDBNeedles: ['customSongs'],
+                localStorageNeedles: []
+            },
+            {
+                id: 'period',
+                label: '经期记录',
+                indexedDBNeedles: ['periodData'],
+                localStorageNeedles: []
+            },
+            {
+                id: 'survey',
+                label: '问卷（我问梦角 / 梦角问我 / 题库）',
+                indexedDBNeedles: ['surveyData'],
+                localStorageNeedles: []
             },
             {
                 id: 'ann',
@@ -506,7 +524,7 @@ async function importAllData(file) {
             {
                 id: 'themes',
                 label: '主题 / 外观 / 图库',
-                indexedDBNeedles: ['customThemes', 'themeSchemes', 'backgroundGallery', 'chatBackground', 'partnerAvatar', 'myAvatar', 'partnerPersonas'],
+                indexedDBNeedles: ['customThemes', 'themeSchemes', 'backgroundGallery', 'chatBackground', 'partnerAvatar', 'myAvatar', 'partnerPersonas', 'callBgImageData'],
                 localStorageNeedles: []
             },
             {

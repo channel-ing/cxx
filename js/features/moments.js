@@ -257,12 +257,35 @@ function _fmtDate(d){if(!d)return'';if(d===_mToday())return'今天';const dt=new
 function _getAvSrc(isPartner){const c=window._avatarCache||{};if(isPartner){if(c.partner)return c.partner;const e=document.getElementById('partner-avatar');return e&&e.src&&!e.src.endsWith('/')?e.src:null;}else{if(c.me)return c.me;const e=document.getElementById('my-avatar');return e&&e.src&&!e.src.endsWith('/')?e.src:null;}}
 function _avEl(isPartner,size){const src=_getAvSrc(isPartner),s=size||36;return src?`<img src="${src}" style="width:${s}px;height:${s}px;border-radius:50%;object-fit:cover;display:block;flex-shrink:0;">`:`<span style="width:${s}px;height:${s}px;border-radius:50%;background:var(--border-color,#d0d0d0);display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;"><i class="fas fa-user" style="font-size:${Math.round(s*0.48)}px;color:var(--text-secondary,#aaa);"></i></span>`;}
 
-// ─── 贴纸选择器（用户自己的 stickerLibrary） ───
+// ─── 贴纸选择器（用户自己的 myStickerLibrary，带分组筛选）───
+// 只做展示 + 切换分组，不提供新建分组/管理分组/上传表情的入口——那些只在主聊天"我的表情库"里
+let _mActiveStickerGroup = null;
+
+function _mStickerGroupRowHTML(list){
+    if(!list.some(g=>g.id===_mActiveStickerGroup)) _mActiveStickerGroup = list.length ? list[0].id : null;
+    if(list.length<=1) return '';
+    let html='<div class="my-sticker-group-row" id="cs-sticker-group-row" style="padding:0 0 8px;">';
+    list.forEach(g=>{
+        const cover=(typeof _myStickerCoverFor==='function')?_myStickerCoverFor(g.id):null;
+        const isCloud=typeof cover==='string' && cover.indexOf('oss://')===0;
+        const inner=cover
+            ? (isCloud
+                ? `<img loading="lazy" data-cover-ref="${cover}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`
+                : `<img loading="lazy" src="${cover}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`)
+            : '<i class="fas fa-images" style="font-size:13px;"></i>';
+        const isActive=g.id===_mActiveStickerGroup;
+        html+=`<button class="my-sticker-group-chip${isActive?' active':''}" data-group-id="${g.id===null?'':g.id}" title="${g.name}">${inner}</button>`;
+    });
+    html+='</div>';
+    return html;
+}
+
 window._mToggleSticker=function(postId){
     const existing=document.getElementById('cs-sticker-picker');
     if(existing){existing.remove();return;}
-    const pool=[...(myStickerLibrary||[])];
-    if(!pool.length){
+    const hasGroupApi = typeof _myStickerGroupsList==='function' && typeof _myStickerItemsInGroup==='function';
+    const rawLib=(myStickerLibrary||[]);
+    if(!rawLib.length){
         const toast=document.createElement('div');
         toast.style.cssText='position:fixed;bottom:100px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.75);color:#fff;padding:8px 16px;border-radius:20px;font-size:13px;z-index:9999;';
         toast.textContent='还没有表情包，请先在设置中上传哦~';
@@ -270,8 +293,31 @@ window._mToggleSticker=function(postId){
     }
     const btn=document.getElementById('cs-sticker-btn-'+postId);
     const rect=btn?btn.getBoundingClientRect():{top:300,left:10};
+    const PANEL_H=240; // 面板固定高度（content-box，不含padding/border），不随表情数量变化
     const picker=document.createElement('div'); picker.id='cs-sticker-picker';
-    picker.style.cssText=`position:fixed;bottom:${window.innerHeight-rect.top+8}px;left:48px;right:48px;z-index:9500;background:var(--secondary-bg);border:1px solid var(--border-color);border-radius:14px;padding:10px;box-shadow:0 8px 32px rgba(0,0,0,0.25);display:grid;grid-template-columns:repeat(4,1fr);gap:8px;max-height:200px;overflow-y:auto;`;
+    // 之前用 flex:1 + overflow-y:auto 直接加在 grid 上"占满剩余高度"，
+    // 这个写法在 iOS Safari 上会把 grid 的行高按分配到的 flex 高度整体重算一遍，
+    // 表情一多格子就被压扁成长方形——跟主聊天那次的坑不是同一个，但是同一类"flex 高度协商"的锅。
+    // 这次不用 flex 布局协商高度，改成量出分组条实际渲染高度后用 JS 直接给滚动区钉一个固定像素高度，
+    // 网格永远是普通块级元素，不会被任何弹性布局的高度重算插手，格子的正方形只取决于自己的宽度。
+    picker.style.cssText=`position:fixed;bottom:${window.innerHeight-rect.top+8}px;left:48px;right:48px;z-index:9500;background:var(--secondary-bg);border:1px solid var(--border-color);border-radius:14px;padding:10px;box-shadow:0 8px 32px rgba(0,0,0,0.25);height:${PANEL_H}px;overflow:hidden;`;
+
+    let pool;
+    if(hasGroupApi){
+        const list=_myStickerGroupsList();
+        picker.insertAdjacentHTML('beforeend', _mStickerGroupRowHTML(list));
+        pool=_myStickerItemsInGroup(_mActiveStickerGroup).map(e=>e.src);
+    } else {
+        // 兜底：分组相关函数还没加载到时，退回展示整个表情库（不分组），兼容旧的纯字符串格式
+        pool=rawLib.map(s=>(typeof s==='string')?s:s.src);
+    }
+
+    const grid=document.createElement('div');
+    grid.id='cs-sticker-grid';
+    grid.style.cssText='display:grid;grid-template-columns:repeat(4,1fr);gap:8px;';
+    if(!pool.length){
+        grid.innerHTML='<div style="grid-column:1/-1;text-align:center;color:var(--text-secondary);opacity:.5;font-size:12px;padding:16px 0;">这个分组还没有表情</div>';
+    }
     pool.forEach(src=>{
         const b=document.createElement('button');
         b.style.cssText='position:relative;background:var(--primary-bg);border:1px solid var(--border-color);padding:0;cursor:pointer;border-radius:7px;overflow:hidden;display:block;';
@@ -282,10 +328,38 @@ window._mToggleSticker=function(postId){
         const imgTag=isCloud?`<img data-lazy-cloud-ref="${src}" style="position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;">`:`<img src="${src}" style="position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;">`;
         b.insertAdjacentHTML('beforeend', imgTag);
         b.onclick=()=>window._mSelectSticker(postId,src);
-        picker.appendChild(b);
+        grid.appendChild(b);
     });
+
+    const scrollWrap=document.createElement('div');
+    scrollWrap.id='cs-sticker-scrollwrap';
+    scrollWrap.style.cssText='overflow-y:auto;'; // 高度先不设，等分组条真正渲染完量出实际高度后再钉死
+    scrollWrap.appendChild(grid);
+    picker.appendChild(scrollWrap);
+
     document.body.appendChild(picker);
+    // 分组条挂到DOM后才有真实渲染高度——量出来，用固定像素高度钉死滚动区，
+    // 不让浏览器用任何弹性布局的算法去"猜"这块该有多高（那正是压扁 bug 的来源）
+    const groupRowEl=picker.querySelector('#cs-sticker-group-row');
+    const groupRowH=groupRowEl?groupRowEl.offsetHeight:0;
+    scrollWrap.style.height=Math.max(PANEL_H-groupRowH,40)+'px';
     _bindLazy(picker);
+    picker.querySelectorAll('img[data-cover-ref]').forEach(img=>{
+        if(window.CloudMedia) window.CloudMedia.bindLazyImage(img, img.getAttribute('data-cover-ref'));
+    });
+    const groupRow=picker.querySelector('#cs-sticker-group-row');
+    if(groupRow){
+        groupRow.querySelectorAll('.my-sticker-group-chip').forEach(chip=>{
+            chip.onclick=(e)=>{
+                e.stopPropagation();
+                _mActiveStickerGroup=chip.dataset.groupId||null;
+                // 切分组＝关掉重开：面板整个是重新 build 的，没有单独的"只刷新网格"路径，
+                // 复用 toggle 的关/开两步，避免另写一份局部刷新逻辑
+                picker.remove();
+                window._mToggleSticker(postId);
+            };
+        });
+    }
     setTimeout(()=>{function c(ev){if(!picker.contains(ev.target)&&(!btn||!btn.contains(ev.target))){picker.remove();document.removeEventListener('click',c);}}document.addEventListener('click',c);},100);
 };
 

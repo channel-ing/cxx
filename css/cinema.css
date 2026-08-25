@@ -426,7 +426,8 @@
     border-radius: 16px 16px 16px 4px;
 }
 .cinema-msg-img {
-    max-width: 50%;
+    max-width: 100px; /* 跟主聊天一样固定死——之前是按聊天面板宽度的50%来算，
+        表情包这种本来就小的图片会被硬生生撑得巨大，改成固定像素就不会再跟着面板宽度走了 */
     border-radius: 12px;
     overflow: hidden;
     line-height: 0;
@@ -485,11 +486,14 @@
     flex-shrink: 0;
 }
 .cinema-sticker-popover {
-    position: absolute;
-    left: 12px;
-    right: 12px;
-    bottom: calc(100% + 8px);
-    max-height: 260px;
+    /* 原来是 position:absolute，相对 .cinema-input-bar-wrap 定位——但输入栏这层本身在
+       .cinema-body（overflow-y:auto 的滚动容器）里面，面板往上展开的这一段空间不一定够，
+       嵌入模式下视频播放器+工具栏占掉大半屏幕，可视区域不够高，面板顶部就被滚动容器"卷"没了，
+       看起来像面板消失了，其实是被卷到当前可视范围外面去了。
+       改成 position:fixed，直接相对整个视口定位（打开面板时用 JS 量一次输入栏的实际屏幕位置），
+       不再受任何滚动容器影响——跟动态/陪伴模式的表情面板是同一个思路 */
+    position: fixed;
+    height: 260px; /* 固定高度，不随表情数量变化——表情少时面板不会跟着缩短 */
     background: var(--secondary-bg, #fff);
     border: 1px solid var(--border-color, #e0e0e0);
     border-radius: 16px;
@@ -497,7 +501,7 @@
     display: none;
     flex-direction: column;
     overflow: hidden;
-    z-index: 20;
+    z-index: 200;
 }
 .cinema-sticker-popover.active {
     display: flex;
@@ -510,14 +514,21 @@
     padding: 10px 12px 6px;
 }
 .cinema-sticker-grid {
-    flex: 1;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
     display: grid;
     grid-template-columns: repeat(4, 1fr);
     align-content: start; /* 不要把多余的空白高度摊派给每一行，不然格子会被拉伸变形，不再是正方形 */
     gap: 8px;
     padding: 4px 12px 12px;
+}
+/* 表情网格外面的滚动容器——特意不用 flex:1 让浏览器去"协商"高度。
+   flex:1 + overflow-y:auto 直接加在 grid 本身上，在 iOS Safari 下会导致行高被
+   按分配到的弹性高度整体重算一遍，表情一多格子就被压扁成长方形。
+   现在改成用 JS 量出header+分组条实际渲染高度后，直接给这层钉一个字面意义上的
+   max-height（不是flex属性），网格永远是最普通的块级元素，格子的正方形只取决于自己的宽度，
+   不会再被任何弹性布局的高度计算插手；表情少的时候还是会正常缩短，不会占满整块空间 */
+.cinema-sticker-scrollwrap {
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
 }
 .cinema-sticker-item {
     position: relative;

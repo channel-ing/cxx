@@ -450,7 +450,9 @@ const loadData = async () => {
             localforage.getItem(getStorageKey('myStickerLibrary')),
             localforage.getItem(getStorageKey('customReplyGroups')),
             localforage.getItem(getStorageKey('customPokeGroups')),
-            localforage.getItem(getStorageKey('customStatusGroups'))
+            localforage.getItem(getStorageKey('customStatusGroups')),
+            localforage.getItem(getStorageKey('customPeriodCare')),
+            localforage.getItem(getStorageKey('myStickerGroups'))
         ]);
         const getVal = (index) => results[index].status === 'fulfilled' ? results[index].value : null;
 
@@ -475,6 +477,8 @@ const loadData = async () => {
         const savedReplyGroups = getVal(18);
         const savedPokeGroups = getVal(19);
         const savedStatusGroups = getVal(20);
+        const savedPeriodCare = getVal(21);
+        const savedMyStickerGroups = getVal(22);
 
         if (savedPartnerPersonas) partnerPersonas = savedPartnerPersonas;
 
@@ -503,6 +507,8 @@ const loadData = async () => {
         
         if (savedIntros) customIntros = savedIntros;
         else customIntros = CONSTANTS.WELCOME_ANIMATIONS.map(a => `${a.line1}|${a.line2}`);
+
+        customPeriodCare = savedPeriodCare || [];  // 没有内置预设，用户没配置就是空数组
 
         if (savedMessages && Array.isArray(savedMessages)) {
             messages = savedMessages.map(m => ({
@@ -543,6 +549,26 @@ const loadData = async () => {
         if (savedAnniversaries) anniversaries = savedAnniversaries;
         if (savedStickers) stickerLibrary = savedStickers;
         if (savedMyStickers) myStickerLibrary = savedMyStickers;
+        if (savedMyStickerGroups) window.myStickerGroups = savedMyStickerGroups;
+        else window.myStickerGroups = [];
+
+        // 迁移："我的表情库"以前是纯字符串数组（元素直接是图片地址），
+        // 现在要支持分组，每一项需要有自己的身份（id）和归属（groupId），
+        // 改成对象数组。只有第一次加载到旧格式数据时才会触发，转完就直接存回去，
+        // 以后不会再重复转。
+        (function _migrateMyStickerLibrary() {
+            if (!Array.isArray(myStickerLibrary) || !myStickerLibrary.length) return;
+            var needsMigration = myStickerLibrary.some(function (s) { return typeof s === 'string'; });
+            if (!needsMigration) return;
+            var base = Date.now();
+            myStickerLibrary = myStickerLibrary.map(function (s, i) {
+                if (typeof s === 'string') {
+                    return { id: 'stk_' + base + '_' + i, src: s, groupId: null, addedAt: base + i, groupJoinedAt: base + i };
+                }
+                return s; // 已经是新格式的，原样保留
+            });
+            try { localforage.setItem(getStorageKey('myStickerLibrary'), myStickerLibrary); } catch (e) {}
+        })();
         if (savedCustomThemes) customThemes = savedCustomThemes;
         if (savedThemeSchemes) themeSchemes = savedThemeSchemes;
         try { const ce = await localforage.getItem(getStorageKey('customEmojis')); if (ce && Array.isArray(ce)) customEmojis = ce; } catch(e) {}
@@ -642,6 +668,8 @@ const LIBRARY_CONFIG = {
         tabs: [
             { id: 'pokes', name: '拍一拍', mode: 'list' },
             { id: 'statuses', name: '对方状态', mode: 'list' },
+            { id: 'surveyBank', name: '问卷题库', mode: 'list' },
+            { id: 'period', name: '经期', mode: 'list' },
             { id: 'mottos', name: '顶部格言', mode: 'list' },
             { id: 'intros', name: '开场动画', mode: 'list' }
         ]
@@ -761,8 +789,10 @@ const saveData = async () => {
         { key: 'customStatuses',         val: () => localforage.setItem(getStorageKey('customStatuses'), customStatuses) },
         { key: 'customMottos',           val: () => localforage.setItem(getStorageKey('customMottos'), customMottos) },
         { key: 'customIntros',           val: () => localforage.setItem(getStorageKey('customIntros'), customIntros) },
+        { key: 'customPeriodCare',       val: () => localforage.setItem(getStorageKey('customPeriodCare'), customPeriodCare) },
         { key: 'stickerLibrary',         val: () => localforage.setItem(getStorageKey('stickerLibrary'), stickerLibrary) },
         { key: 'myStickerLibrary',       val: () => localforage.setItem(getStorageKey('myStickerLibrary'), myStickerLibrary) },
+        { key: 'myStickerGroups',        val: () => localforage.setItem(getStorageKey('myStickerGroups'), window.myStickerGroups || []) },
         { key: 'customThemes',           val: () => localforage.setItem(`${APP_PREFIX}customThemes`, customThemes) },
         { key: 'themeSchemes',           val: () => localforage.setItem(`${APP_PREFIX}themeSchemes`, themeSchemes) },
         { key: 'chatMessages',           val: () => localforage.setItem(getStorageKey('chatMessages'), messages) },
@@ -1056,7 +1086,18 @@ function manageAutoSendTimer() {
 
         const updateAvatar = (element, src) => {
             if (src) {
-                element.innerHTML = `<img src="${src}" alt="avatar">`;
+                // src 可能是本地 base64（直接能当 img src 用），也可能是配置了云端之后
+                // 迁移出来的 oss:// 引用——这种要走 CloudMedia 懒加载解析成真正的图片地址，
+                // 直接塞进 src 浏览器认不出协议，会裂图
+                if (window.CloudMedia && window.CloudMedia.isCloudRef && window.CloudMedia.isCloudRef(src)) {
+                    var avatarImg = document.createElement('img');
+                    avatarImg.alt = 'avatar';
+                    element.innerHTML = '';
+                    element.appendChild(avatarImg);
+                    window.CloudMedia.bindLazyImage(avatarImg, src);
+                } else {
+                    element.innerHTML = `<img src="${src}" alt="avatar">`;
+                }
                 // 同时写内存缓存，供 saveData 读取（不从 DOM img.src 读，不可靠）
                 if (!window._avatarCache) window._avatarCache = {};
                 if (element === DOMElements.partner.avatar) window._avatarCache.partner = src;
@@ -1069,6 +1110,17 @@ function manageAutoSendTimer() {
                     else if (element === DOMElements.me.avatar) window._avatarCache.me = null;
                 }
             }
+        };
+        // 给云端迁移脚本用的重新加载钩子——迁移是直接写 localforage 把头像换成 oss:// 引用，
+        // 不走这里的 updateAvatar，如果内存里的 window._avatarCache 不刷新，
+        // 下一次 saveData() 存档时就会把迁移好的地址覆盖回旧的本地 base64，等于白迁移
+        window._refreshAvatarsFromStorage = async function () {
+            try {
+                var pv = await localforage.getItem(getStorageKey('partnerAvatar'));
+                var mv = await localforage.getItem(getStorageKey('myAvatar'));
+                updateAvatar(DOMElements.partner.avatar, pv);
+                updateAvatar(DOMElements.me.avatar, mv);
+            } catch (e) {}
         };
 
         const removeBackground = () => {
@@ -2437,6 +2489,7 @@ function showModal(modalElement, focusElement = null) {
                         if (customStatuses && customStatuses.length > 0) exportObj.customStatuses = customStatuses;
                         if (customMottos && customMottos.length > 0) exportObj.customMottos = customMottos;
                         if (customIntros && customIntros.length > 0) exportObj.customIntros = customIntros;
+                        if (customPeriodCare && customPeriodCare.length > 0) exportObj.customPeriodCare = customPeriodCare;
                         if (window.customReplyGroups && window.customReplyGroups.length > 0) exportObj.customReplyGroups = window.customReplyGroups;
                         if (window.customPokeGroups && window.customPokeGroups.length > 0) exportObj.customPokeGroups = window.customPokeGroups;
                         if (window.customStatusGroups && window.customStatusGroups.length > 0) exportObj.customStatusGroups = window.customStatusGroups;
@@ -2670,6 +2723,7 @@ function showModal(modalElement, focusElement = null) {
                         if (doReplies  && importedData.customPokes && Array.isArray(importedData.customPokes)) customPokes = importedData.customPokes;
                         if (doReplies  && importedData.customStatuses && Array.isArray(importedData.customStatuses)) customStatuses = importedData.customStatuses;
                         if (doReplies  && importedData.customMottos && Array.isArray(importedData.customMottos)) customMottos = importedData.customMottos;
+                        if (doReplies  && importedData.customPeriodCare && Array.isArray(importedData.customPeriodCare)) customPeriodCare = importedData.customPeriodCare;
                         if (doReplies  && importedData.customIntros && Array.isArray(importedData.customIntros)) customIntros = importedData.customIntros;
                         if (doReplies  && importedData.customReplyGroups) window.customReplyGroups = importedData.customReplyGroups;
                         if (doReplies  && importedData.customPokeGroups) window.customPokeGroups = importedData.customPokeGroups;

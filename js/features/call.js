@@ -5,7 +5,11 @@
     const KEY_POS      = 'callWindowPos';
     const KEY_SIZE     = 'callWindowSize';
     const KEY_PILL_POS = 'callPillPos';
-    const BG_LF_KEY    = 'callBgImageData';
+    // 之前这个key完全没加前缀（既不是APP_PREFIX+sid，也不是APP_PREFIX），云同步/本地选择性恢复
+    // 那套按key名字匹配的逻辑根本认不出它，形同被漏掉。改成跟其他全局key一样带上APP_PREFIX；
+    // LEGACY是老用户可能已经存过的没前缀的那份，读的时候兜底一下顺便悄悄搬过去，不丢已有背景
+    const BG_LF_KEY        = (window.APP_PREFIX || 'CHAT_APP_V3_') + 'callBgImageData';
+    const BG_LF_KEY_LEGACY = 'callBgImageData';
 
     const S = {
         enabled:         localStorage.getItem(KEY_ENABLED) !== 'false',
@@ -33,12 +37,29 @@
 
     function loadBg() {
         if (!window.localforage) return;
-        localforage.getItem(BG_LF_KEY).then(v => { if (v) { S.bgImage = v; applyBg(); } }).catch(() => {});
+        localforage.getItem(BG_LF_KEY).then(v => {
+            if (v) { S.bgImage = v; applyBg(); return; }
+            // 新key是空的——看看老用户是不是还有存量数据留在没前缀的老key里，
+            // 有的话读出来用，并顺手搬到新key，之后就都走新key了
+            localforage.getItem(BG_LF_KEY_LEGACY).then(legacy => {
+                if (!legacy) return;
+                S.bgImage = legacy;
+                applyBg();
+                localforage.setItem(BG_LF_KEY, legacy).catch(() => {});
+                localforage.removeItem(BG_LF_KEY_LEGACY).catch(() => {});
+            }).catch(() => {});
+        }).catch(() => {});
     }
     function saveBg(d) {
         if (!d || !window.localforage) return;
         localforage.setItem(BG_LF_KEY, d).catch(() => {});
     }
+    // 给云端迁移脚本用的重新加载钩子，道理跟头像那个一样：迁移是直接写 localforage 把背景换成
+    // oss:// 引用，不走这里，S.bgImage 内存不刷新的话，下次 saveBg() 又会把旧base64存回去
+    window._refreshCallBgFromStorage = function () {
+        if (!window.localforage) return Promise.resolve();
+        return localforage.getItem(BG_LF_KEY).then(v => { if (v) { S.bgImage = v; applyBg(); } });
+    };
 
     const SVG_HU = `<svg viewBox="0 0 24 24" fill="none" style="display:block;width:100%;height:100%;">
   <path d="M6.6 10.8c1.4 2.8 3.7 5.1 6.5 6.5l2.2-2.2c.28-.27.68-.36 1.03-.24 1.1.37 2.3.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1C10.56 21 3 13.44 3 4c0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.28.2 2.5.57 3.57.11.35.03.74-.24 1.02L6.6 10.8z" fill="white"/>
@@ -573,8 +594,19 @@ html:not([data-theme="dark"])[data-color-theme="black-white"] .message-sent{
     function applyBg() {
         const img = document.getElementById('call-bg-img');
         if (!img) return;
-        if (S.bgImage) { img.src = S.bgImage; img.style.display = 'block'; }
-        else { img.src = ''; img.style.display = 'none'; }
+        if (S.bgImage) {
+            img.style.display = 'block';
+            // 配置了云端之后，S.bgImage 可能是迁移出来的 oss:// 引用，直接当 src 用浏览器认不出协议，
+            // 要走 CloudMedia 懒加载解析成真正的图片地址——跟头像那处是同一个坑
+            if (window.CloudMedia && window.CloudMedia.isCloudRef && window.CloudMedia.isCloudRef(S.bgImage)) {
+                window.CloudMedia.bindLazyImage(img, S.bgImage);
+            } else {
+                img.src = S.bgImage;
+            }
+        } else {
+            img.src = '';
+            img.style.display = 'none';
+        }
     }
 
     function positionWindow() {

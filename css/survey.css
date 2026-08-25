@@ -1,0 +1,571 @@
+/* ── 问卷功能 · 创建问卷弹窗（我问梦角）Step 1 ── */
+
+#survey-create-content {
+    max-width: 400px;
+    max-height: 85vh;
+    overflow-y: auto;
+}
+
+#survey-q-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-top: 6px;
+    flex-shrink: 0; /* .modal-content 本身是 flex column + overflow-y:auto，
+        这层不设 flex-shrink:0 的话，内容一多浏览器会把它硬压缩来腾地方，
+        而不是老老实实溢出滚动——跟 .modal-buttons 已经有的 flex-shrink:0 保持一致 */
+}
+
+.survey-q-card {
+    border: 1px solid var(--border-color);
+    border-radius: 14px;
+    padding: 12px;
+    background: var(--primary-bg);
+    flex-shrink: 0;
+}
+.survey-q-card-hd {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+.survey-q-index {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--accent-color);
+    background: rgba(var(--accent-color-rgb), 0.12);
+    border-radius: 8px;
+    padding: 3px 8px;
+    flex-shrink: 0;
+}
+.survey-q-del-btn {
+    margin-left: auto;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    flex-shrink: 0;
+    font-size: 13px;
+}
+.survey-q-del-btn:active { background: rgba(0,0,0,0.06); }
+
+.survey-q-text-input {
+    width: 100%;
+    box-sizing: border-box;
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    padding: 8px 10px;
+    font-size: 13.5px;
+    font-family: inherit;
+    color: var(--text-primary);
+    background: var(--secondary-bg);
+    resize: none;
+    min-height: 40px;
+    margin-bottom: 10px;
+}
+.survey-q-text-input:focus { outline: none; border-color: var(--accent-color); }
+
+.survey-type-toggle {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+.survey-type-btn {
+    flex: 1;
+    padding: 6px 0;
+    border-radius: 10px;
+    border: 1px solid var(--border-color);
+    background: var(--secondary-bg);
+    color: var(--text-secondary);
+    font-size: 12.5px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+    transition: all 0.15s;
+}
+.survey-type-btn.active {
+    border-color: var(--accent-color);
+    background: rgba(var(--accent-color-rgb), 0.12);
+    color: var(--accent-color);
+}
+
+.survey-option-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+.survey-option-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.survey-option-text-input {
+    flex: 1;
+    box-sizing: border-box;
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    padding: 7px 10px;
+    font-size: 13px;
+    font-family: inherit;
+    color: var(--text-primary);
+    background: var(--secondary-bg);
+}
+.survey-option-text-input:focus { outline: none; border-color: var(--accent-color); }
+
+.survey-option-img-wrap {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.survey-option-img-thumb {
+    width: 64px;
+    height: 64px;
+    border-radius: 10px;
+    overflow: hidden;
+    background: var(--secondary-bg);
+    border: 1px solid var(--border-color);
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.survey-option-img-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+.survey-option-img-thumb i {
+    color: var(--text-secondary);
+    font-size: 20px;
+    opacity: 0.6;
+}
+.survey-option-img-pick {
+    font-size: 12px;
+    color: var(--accent-color);
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.survey-option-del-btn {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    flex-shrink: 0;
+    font-size: 12px;
+}
+.survey-option-del-btn:active { background: rgba(0,0,0,0.06); }
+
+.survey-add-option-btn {
+    width: 100%;
+    padding: 7px 0;
+    border-radius: 10px;
+    border: 1px dashed var(--border-color);
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 12.5px;
+    cursor: pointer;
+    font-family: inherit;
+}
+.survey-add-option-btn:disabled {
+    opacity: 0.4;
+    cursor: default;
+}
+
+#survey-add-q-btn {
+    flex-shrink: 0;
+}
+
+.survey-q-kind-toggle {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 8px;
+}
+.survey-q-kind-btn {
+    font-size: 11.5px;
+    padding: 4px 10px;
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+    background: var(--secondary-bg);
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-family: inherit;
+}
+.survey-q-kind-btn.active {
+    border-color: var(--accent-color);
+    background: rgba(var(--accent-color-rgb), 0.12);
+    color: var(--accent-color);
+}
+
+.survey-err-tip {
+    font-size: 11.5px;
+    color: #e0605a;
+    margin-top: 2px;
+}
+
+/* ── 历史记录列表页 ── */
+#survey-list-body,
+#survey-detail-body,
+#survey-trash-body {
+    /* 同上，防止内容一多被 .modal-content 的 flex 布局压缩 */
+    flex-shrink: 0;
+}
+/* "关闭"/"删除"这种只有一个按钮的场景，靠右下角，不要贴在左边；
+   这几个弹窗的按钮区都补上安全区下边距，别贴着屏幕底部/小白条——
+   列表页那个现在有"返回+关闭"两个按钮了，交给按钮区自己的 inline style 摆两端对齐，
+   这里不用再额外抢着把它们一起挤去右边 */
+#survey-detail-content > .modal-buttons {
+    padding-bottom: max(14px, env(safe-area-inset-bottom, 14px));
+}
+#survey-detail-content > .modal-buttons.survey-buttons-solo {
+    justify-content: flex-end;
+}
+#survey-trash-modal .modal-content > .modal-buttons {
+    justify-content: flex-end;
+    padding-bottom: max(14px, env(safe-area-inset-bottom, 14px));
+}
+.survey-icon-btn {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    border: none;
+    background: rgba(var(--accent-color-rgb), 0.1);
+    color: var(--accent-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 13px;
+    flex-shrink: 0;
+}
+.survey-icon-btn:active { opacity: 0.7; }
+
+.survey-list-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    padding: 50px 10px 30px;
+    color: var(--text-secondary);
+}
+.survey-list-empty i { font-size: 32px; opacity: 0.35; }
+.survey-list-empty p { font-size: 13px; opacity: 0.7; margin: 0; }
+.survey-toolbar-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 10px 0;
+    flex-shrink: 0;
+}
+.survey-toolbar-actions {
+    display: flex;
+    gap: 10px;
+    flex-shrink: 0;
+}
+#survey-fav-filter-bar {
+    display: flex;
+    min-width: 0; /* 允许在需要时缩小，不撑爆右边trash/+按钮的位置 */
+}
+/* 筛选chip的下拉菜单默认是贴右边往左长的（陪伴日记那边是这么设计的，因为它的chip本来就靠右）。
+   问卷这边chip靠左放，如果昵称比较长很容易顶到屏幕外面去，所以这里反过来贴左边往右长；
+   宽度用 max-content 让每一项自己撑开、数字跟文字保持同一行，同时用 min() 兜个底，
+   万一昵称长到接近整个屏幕宽度了也不会真的把弹窗顶穿出去 */
+#survey-filter-dropdown {
+    left: 0;
+    right: auto;
+    width: max-content;
+    max-width: min(280px, calc(100vw - 64px));
+}
+#survey-filter-dropdown .cd-dropdown-item {
+    white-space: nowrap;
+}
+.survey-empty-create-btn {
+    margin-top: 6px;
+    padding: 9px 20px;
+    border-radius: 20px;
+    border: none;
+    background: var(--accent-color);
+    color: #fff;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.survey-empty-create-btn:active { opacity: 0.8; }
+
+.survey-card {
+    border: 1px solid var(--border-color);
+    border-radius: 14px;
+    padding: 12px 14px;
+    background: var(--primary-bg);
+    margin-bottom: 10px;
+    cursor: pointer;
+    position: relative;
+}
+.survey-card:active { opacity: 0.8; }
+.survey-card-top {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 6px;
+}
+.survey-tag {
+    font-size: 10.5px;
+    font-weight: 700;
+    padding: 2px 7px;
+    border-radius: 6px;
+    flex-shrink: 0;
+}
+.survey-tag-src-me { background: rgba(var(--accent-color-rgb), 0.15); color: var(--accent-color); }
+.survey-tag-src-partner { background: rgba(120, 150, 255, 0.15); color: #7896ff; }
+
+.survey-tag-status { margin-left: auto; }
+.survey-fav-btn {
+    position: absolute;
+    right: 10px;
+    bottom: 10px;
+    width: 26px;
+    height: 26px;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    opacity: 0.5;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 15px;
+    flex-shrink: 0;
+    padding: 0;
+}
+.survey-fav-btn:active { opacity: 0.8; }
+.survey-fav-btn.favorited { color: #e6af3c; opacity: 1; }
+.survey-tag-status-pending          { background: rgba(230, 175, 60, 0.18); color: #c98b1f; }
+.survey-tag-status-answered         { background: rgba(90, 180, 120, 0.18); color: #3f9e64; }
+.survey-tag-status-withdrawn        { background: rgba(150, 150, 150, 0.18); color: var(--text-secondary); }
+.survey-tag-status-received         { background: rgba(90, 180, 120, 0.18); color: #3f9e64; }
+.survey-tag-status-unanswered       { background: rgba(150, 150, 150, 0.18); color: var(--text-secondary); }
+.survey-tag-status-awaiting-receipt { background: rgba(150, 150, 150, 0.18); color: var(--text-secondary); }
+/* "new"角标要最显眼——用主题色+加粗，跟其他灰扑扑的状态区分开 */
+.survey-tag-status-new {
+    background: var(--accent-color);
+    color: #fff;
+    font-weight: 800;
+    letter-spacing: 0.3px;
+}
+
+.survey-card-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+    line-height: 1.4;
+    margin-bottom: 4px;
+    padding-right: 32px; /* 给右下角的收藏星星让位置，不让长标题的第二行文字压到它 */
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+.survey-card-meta {
+    font-size: 11px;
+    color: var(--text-secondary);
+    opacity: 0.75;
+    padding-right: 32px; /* 同上，meta这行文字有时候也不短，一起让开星星的位置 */
+}
+
+/* ── 详情页 ── */
+.survey-detail-meta-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 11.5px;
+    color: var(--text-secondary);
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+}
+.survey-detail-q-block {
+    margin-bottom: 18px;
+}
+.survey-detail-q-text {
+    font-size: 13.5px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 8px;
+}
+.survey-detail-opt {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border: 1.5px solid var(--border-color);
+    border-radius: 10px;
+    padding: 8px 10px;
+    margin-bottom: 6px;
+    font-size: 13px;
+    color: var(--text-primary);
+}
+.survey-detail-opt.selected {
+    border-color: var(--accent-color);
+    background: rgba(var(--accent-color-rgb), 0.08);
+}
+.survey-detail-opt-img {
+    max-width: 130px;
+    max-height: 130px;
+    width: auto;
+    height: auto;
+    object-fit: contain; /* 用contain不裁切——之前用cover硬切+240px上限，贴纸这种长宽比不规则的图会显得特别大特别怪 */
+    border-radius: 10px;
+    display: block;
+    background: var(--secondary-bg); /* 加载中/加载失败时占位色，别是一片透明看着像没渲染出来 */
+}
+.survey-detail-opt-img.cloud-media-loading,
+.survey-detail-opt-img.cloud-media-pending {
+    opacity: 0.5;
+}
+.survey-detail-opt-check {
+    margin-left: auto;
+    color: var(--accent-color);
+    font-size: 13px;
+    flex-shrink: 0;
+}
+
+/* ── 回收站 ── */
+.survey-trash-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border-color);
+}
+.survey-trash-row:last-child { border-bottom: none; }
+.survey-trash-title {
+    flex: 1;
+    min-width: 0;
+    font-size: 13px;
+    color: var(--text-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.survey-trash-days {
+    font-size: 10.5px;
+    color: var(--text-secondary);
+    opacity: 0.7;
+    white-space: nowrap;
+}
+.survey-trash-btn-mini {
+    font-size: 11px;
+    padding: 4px 9px;
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+    background: var(--secondary-bg);
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-family: inherit;
+    white-space: nowrap;
+}
+.survey-trash-btn-mini.danger { color: #e0605a; border-color: rgba(224,96,90,0.4); }
+
+/* ── 问卷题库 tab（回复库→氛围感）── */
+.survey-bank-toolbar-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 0 6px;
+}
+.survey-bank-toolbar-row .survey-bank-search { flex: 1; }
+.survey-bank-icon-btn {
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+    border: 1.5px solid var(--border-color);
+    background: var(--primary-bg);
+    color: var(--text-secondary);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    font-size: 13px;
+}
+.survey-bank-icon-btn:active { border-color: var(--accent-color); color: var(--accent-color); }
+.survey-bank-filter-pills {
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    padding: 2px 0 8px;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+}
+.survey-bank-filter-pills::-webkit-scrollbar { display: none; }
+.survey-bank-group-edit-btn,
+.survey-bank-group-chevron {
+    flex-shrink: 0;
+}
+.survey-bank-group-edit-btn {
+    width: 26px;
+    height: 26px;
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+    background: var(--primary-bg);
+    color: var(--text-secondary);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+}
+.survey-bank-group-chevron {
+    color: var(--text-secondary);
+    transition: transform 0.2s;
+    font-size: 11px;
+    display: flex;
+    align-items: center;
+}
+.survey-bank-search {
+    width: 100%;
+    box-sizing: border-box;
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    padding: 7px 12px;
+    font-size: 13px;
+    font-family: inherit;
+    color: var(--text-primary);
+    background: var(--secondary-bg);
+}
+.survey-bank-search:focus { outline: none; border-color: var(--accent-color); }
+.survey-bank-row-hidden { opacity: 0.45; }
+
+/* ── 反向问卷回答输入框 ── */
+.survey-answer-input {
+    width: 100%;
+    box-sizing: border-box;
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    padding: 8px 10px;
+    font-size: 13px;
+    font-family: inherit;
+    color: var(--text-primary);
+    background: var(--primary-bg);
+    resize: none;
+}
+.survey-answer-input:focus { outline: none; border-color: var(--accent-color); }

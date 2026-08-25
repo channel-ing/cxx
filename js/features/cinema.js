@@ -36,6 +36,9 @@
     // watching 状态下：true=沉浸全屏剧场模式，false=嵌入普通电影院tab视图
     var _immersive = true;
 
+    // 观影表情面板当前选中的分组（null=默认分组）——只读展示，不提供新建/管理分组的入口
+    var _cinemaActiveStickerGroup = null;
+
     var _fakeAppt = {
         movieTitle: '',
         dateStr: '',
@@ -974,8 +977,44 @@
     function _stickerPickerHTML() {
         return '<div class="cinema-sticker-popover" id="cinema-sticker-picker">' +
             '<div class="cinema-sticker-popover-hd">我的表情</div>' +
-            '<div class="cinema-sticker-grid" id="cinema-sticker-grid"></div>' +
+            '<div class="my-sticker-group-row" id="cinema-sticker-group-row" style="flex-shrink:0;padding:0 12px 8px;"></div>' +
+            '<div class="cinema-sticker-scrollwrap" id="cinema-sticker-scrollwrap">' +
+                '<div class="cinema-sticker-grid" id="cinema-sticker-grid"></div>' +
+            '</div>' +
         '</div>';
+    }
+    // 分组筛选条——纯展示 + 切换，不提供新建/管理分组的入口（那些功能只在主聊天"我的表情库"里）
+    function _renderCinemaStickerGroupRow(list) {
+        var row = document.getElementById('cinema-sticker-group-row');
+        if (!row) return;
+        if (!list.some(function (g) { return g.id === _cinemaActiveStickerGroup; })) {
+            _cinemaActiveStickerGroup = list.length ? list[0].id : null;
+        }
+        if (list.length <= 1) { row.innerHTML = ''; row.style.display = 'none'; return; }
+        row.style.display = '';
+        var html = '';
+        list.forEach(function (g) {
+            var cover = (typeof _myStickerCoverFor === 'function') ? _myStickerCoverFor(g.id) : null;
+            var isCloud = typeof cover === 'string' && cover.indexOf('oss://') === 0;
+            var inner = cover
+                ? (isCloud
+                    ? '<img loading="lazy" data-cover-ref="' + cover + '" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">'
+                    : '<img loading="lazy" src="' + cover + '" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">')
+                : '<i class="fas fa-images" style="font-size:13px;"></i>';
+            var isActive = g.id === _cinemaActiveStickerGroup;
+            html += '<button class="my-sticker-group-chip' + (isActive ? ' active' : '') + '" data-group-id="' + (g.id === null ? '' : g.id) + '" title="' + g.name + '">' + inner + '</button>';
+        });
+        row.innerHTML = html;
+        row.querySelectorAll('img[data-cover-ref]').forEach(function (img) {
+            if (window.CloudMedia) window.CloudMedia.bindLazyImage(img, img.getAttribute('data-cover-ref'));
+        });
+        row.querySelectorAll('.my-sticker-group-chip').forEach(function (chip) {
+            chip.onclick = function (e) {
+                e.stopPropagation();
+                _cinemaActiveStickerGroup = chip.dataset.groupId || null;
+                _renderCinemaStickerGrid();
+            };
+        });
     }
     function _inputBarHTML() {
         return '<div class="cinema-input-bar-wrap">' +
@@ -988,21 +1027,59 @@
             '<input type="file" id="cinema-image-input" accept="image/*" style="display:none;">' +
         '</div>';
     }
+    // 量出 header + 分组条的实际渲染高度，给 scrollwrap 钉一个字面意义的 height（不是flex属性，也不是max-height）——
+    // 面板固定 260px 高度不随表情数量变化，表情少的时候滚动区就空着，不会把面板往小缩
+    function _sizeCinemaStickerScrollwrap() {
+        var scrollWrap = document.getElementById('cinema-sticker-scrollwrap');
+        var popover = document.getElementById('cinema-sticker-picker');
+        var hd = popover ? popover.querySelector('.cinema-sticker-popover-hd') : null;
+        var groupRow = document.getElementById('cinema-sticker-group-row');
+        if (!scrollWrap) return;
+        var POPOVER_H = 260; // 对应 .cinema-sticker-popover 的固定 height
+        var hdH = hd ? hd.offsetHeight : 0;
+        var groupRowH = (groupRow && groupRow.style.display !== 'none') ? groupRow.offsetHeight : 0;
+        scrollWrap.style.height = Math.max(POPOVER_H - hdH - groupRowH, 60) + 'px';
+    }
     function _renderCinemaStickerGrid() {
         var grid = document.getElementById('cinema-sticker-grid');
         if (!grid) return;
         grid.innerHTML = '';
 
         // 用户自己添加的表情库（不是梦角的）——"我的表情"这个面板只应该显示这个，
-        // 之前误把 customEmojis（专门给梦角用的表情符号库）和预设表情也塞了进来，已经去掉
-        var myStickers = (typeof myStickerLibrary !== 'undefined' && myStickerLibrary) ? myStickerLibrary : [];
+        // 之前误把 customEmojis（专门给梦角用的表情符号库）和预设表情也塞了进来，已经去掉。
+        // 表情库现在是带分组的对象数组（{id, src, groupId, ...}），这里只做展示 + 分组切换，
+        // 新建/管理分组的入口不放在这——那些只在主聊天"我的表情库"里
+        var hasGroupApi = typeof _myStickerGroupsList === 'function' && typeof _myStickerItemsInGroup === 'function';
+        var rawLib = (typeof myStickerLibrary !== 'undefined' && Array.isArray(myStickerLibrary)) ? myStickerLibrary : [];
 
-        if (!myStickers.length) {
+        var groupRow = document.getElementById('cinema-sticker-group-row');
+
+        if (!rawLib.length) {
+            if (groupRow) { groupRow.innerHTML = ''; groupRow.style.display = 'none'; }
             grid.innerHTML = '<div class="cinema-sticker-empty">暂无表情，去主聊天页的"我的表情库"里添加吧</div>';
+            _sizeCinemaStickerScrollwrap();
             return;
         }
 
-        myStickers.forEach(function (src) {
+        var itemsToShow;
+        if (hasGroupApi) {
+            var list = _myStickerGroupsList();
+            _renderCinemaStickerGroupRow(list);
+            itemsToShow = _myStickerItemsInGroup(_cinemaActiveStickerGroup);
+        } else {
+            // 兜底：分组相关函数还没加载到时，退回展示整个表情库（不分组）
+            if (groupRow) { groupRow.innerHTML = ''; groupRow.style.display = 'none'; }
+            itemsToShow = rawLib.map(function (s) { return (typeof s === 'string') ? { src: s } : s; });
+        }
+
+        if (!itemsToShow.length) {
+            grid.innerHTML = '<div class="cinema-sticker-empty">这个分组还没有表情</div>';
+            _sizeCinemaStickerScrollwrap();
+            return;
+        }
+
+        itemsToShow.forEach(function (entry) {
+            var src = entry.src;
             var item = document.createElement('div');
             item.className = 'cinema-sticker-item';
             item.innerHTML = '<img>';
@@ -1024,6 +1101,7 @@
             grid.appendChild(item);
         });
 
+        _sizeCinemaStickerScrollwrap();
         // 用JS直接量出格子实际宽度，把高度钉成一样的数字，强制变成正方形——
         // 不再依赖任何CSS的自动计算技巧（试过两次都在这个面板的布局环境下失效），这样不会再有出错的空间
         requestAnimationFrame(function () {
@@ -1044,8 +1122,17 @@
             emojiBtn.addEventListener('click', function (e) {
                 e.stopPropagation();
                 var picker = document.getElementById('cinema-sticker-picker');
+                var wrap = document.querySelector('.cinema-input-bar-wrap');
                 if (!picker) return;
                 var willOpen = !picker.classList.contains('active');
+                if (willOpen && wrap) {
+                    // position:fixed 相对整个视口定位，用输入栏当前的实际屏幕位置量一次——
+                    // 不用每次滚动都重新量，跟动态/陪伴模式那两个面板是同一个做法
+                    var rect = wrap.getBoundingClientRect();
+                    picker.style.left = (rect.left + 12) + 'px';
+                    picker.style.right = (window.innerWidth - rect.right + 12) + 'px';
+                    picker.style.bottom = (window.innerHeight - rect.top + 8) + 'px';
+                }
                 picker.classList.toggle('active', willOpen);
                 if (willOpen) _renderCinemaStickerGrid();
             });
@@ -1133,8 +1220,11 @@
                 '<div class="cinema-invite-response-card">' +
                     '<div class="cinema-invite-response-time">' + _escapeHtml(_negoState.dateStr) + '  ' + _escapeHtml(_negoState.timeStr) + '</div>' +
                     '<div class="cinema-invite-response-actions">' +
-                        '<button class="cinema-invite-resp-btn cinema-invite-resp-btn--decline" id="cinema-resp-decline">拒绝</button>' +
                         '<button class="cinema-invite-resp-btn cinema-invite-resp-btn--secondary" id="cinema-resp-reschedule">更换时间</button>' +
+                        '<button class="cinema-invite-resp-btn cinema-invite-resp-btn--secondary" id="cinema-resp-changemovie">换片</button>' +
+                    '</div>' +
+                    '<div class="cinema-invite-response-actions" style="margin-top:8px;">' +
+                        '<button class="cinema-invite-resp-btn cinema-invite-resp-btn--decline" id="cinema-resp-decline">拒绝</button>' +
                         '<button class="cinema-invite-resp-btn cinema-invite-resp-btn--primary" id="cinema-resp-accept">同意</button>' +
                     '</div>' +
                 '</div>';
@@ -1157,6 +1247,7 @@
         if (isUserTurn) {
             document.getElementById('cinema-resp-accept').addEventListener('click', _negoAcceptCountered);
             document.getElementById('cinema-resp-reschedule').addEventListener('click', _negoOpenRescheduleModal);
+            document.getElementById('cinema-resp-changemovie').addEventListener('click', _negoOpenChangeMovieModal);
             document.getElementById('cinema-resp-decline').addEventListener('click', _negoDecline);
         } else if (!negoActive) {
             document.getElementById('cinema-invite-btn').addEventListener('click', _openInviteSheet);
@@ -1859,9 +1950,12 @@
             actionsHtml = '<div class="cinema-invite-card-status cinema-invite-card-status--declined">下次吧…</div>';
         } else {
             actionsHtml =
-                '<div class="cinema-invite-card-actions cinema-invite-card-actions--three">' +
-                    '<button class="cinema-invite-card-btn cinema-invite-card-btn--decline" data-invite-action="decline">拒绝</button>' +
+                '<div class="cinema-invite-card-actions">' +
                     '<button class="cinema-invite-card-btn cinema-invite-card-btn--secondary" data-invite-action="reschedule">更换时间</button>' +
+                    '<button class="cinema-invite-card-btn cinema-invite-card-btn--secondary" data-invite-action="changemovie">换片</button>' +
+                '</div>' +
+                '<div class="cinema-invite-card-actions" style="margin-top:8px;">' +
+                    '<button class="cinema-invite-card-btn cinema-invite-card-btn--decline" data-invite-action="decline">拒绝</button>' +
                     '<button class="cinema-invite-card-btn cinema-invite-card-btn--primary" data-invite-action="accept">同意</button>' +
                 '</div>';
         }
@@ -2252,6 +2346,45 @@
         });
     }
 
+    // 换片弹窗——照抄"更换时间"的结构，只是把日期/时间选择器换成片名输入框
+    function _negoOpenChangeMovieModal() {
+        if (!_negoState || !_negoState.active) return;
+        var old = document.getElementById('cinema-changemovie-modal');
+        if (old) old.remove();
+
+        var modal = document.createElement('div');
+        modal.id = 'cinema-changemovie-modal';
+        modal.className = 'cinema-invite-sheet';
+        modal.innerHTML =
+            '<div class="cinema-invite-mask" id="cinema-changemovie-mask"></div>' +
+            '<div class="cinema-invite-body">' +
+                '<div class="cinema-invite-title">换个片子</div>' +
+                '<div class="cinema-invite-label">片名</div>' +
+                '<input type="text" class="cinema-invite-input" id="cinema-changemovie-input" maxlength="40" placeholder="想看什么电影？" value="' + _escapeHtml(_negoState.movieTitle) + '">' +
+                '<div class="cinema-invite-error" id="cinema-changemovie-error"></div>' +
+                '<div class="cinema-invite-actions">' +
+                    '<button class="cinema-invite-cancel" id="cinema-changemovie-cancel">取消</button>' +
+                    '<button class="cinema-invite-confirm" id="cinema-changemovie-confirm">发出新片名</button>' +
+                '</div>' +
+            '</div>';
+        document.body.appendChild(modal);
+
+        function close() { modal.remove(); }
+        document.getElementById('cinema-changemovie-mask').addEventListener('click', close);
+        document.getElementById('cinema-changemovie-cancel').addEventListener('click', close);
+        document.getElementById('cinema-changemovie-confirm').addEventListener('click', function () {
+            var input = document.getElementById('cinema-changemovie-input');
+            var val = input.value.trim();
+            var errorEl = document.getElementById('cinema-changemovie-error');
+            if (!val) { errorEl.textContent = '片名不能是空的呀'; return; }
+            close();
+            // 跟"更换时间"用的是同一套协商引擎：时间不变，只换片名，
+            // 梦角下一次回复的"第几次"照样要 +1（复用更换时间那套接受概率递增逻辑）
+            var nextReplyIndex = (_negoState ? _negoState.replyIndex : 1) + 1;
+            _negoStartRound(val, _negoState.dateStr, _negoState.timeStr, nextReplyIndex);
+        });
+    }
+
     // 主聊天里邀请卡按钮的事件委托（卡片是动态插入主聊天的，绑定在 document 上）
     function _bindInviteCardDelegation() {
         document.addEventListener('click', function (e) {
@@ -2264,6 +2397,7 @@
             var action = btn.getAttribute('data-invite-action');
             if (action === 'accept') _negoAcceptCountered();
             else if (action === 'reschedule') _negoOpenRescheduleModal();
+            else if (action === 'changemovie') _negoOpenChangeMovieModal();
             else if (action === 'decline') _negoDecline();
         });
     }

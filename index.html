@@ -24,6 +24,11 @@
     <link rel="stylesheet" href="css/styles.css">
     <link rel="stylesheet" href="css/companion.css">
     <link rel="stylesheet" href="css/cinema.css">
+    <link rel="stylesheet" href="css/period.css">
+    <link rel="stylesheet" href="css/music-local.css">
+    <link rel="stylesheet" href="css/my-sticker-groups.css">
+    <link rel="stylesheet" href="css/global-msg-banner.css">
+    <link rel="stylesheet" href="css/survey.css">
 
     <style id="css-live-preview-style"></style>
     <style>
@@ -1180,7 +1185,7 @@ html[data-theme="dark"] #cs-transition-overlay{background:radial-gradient(circle
             </div>
 
 
-            <div class="modal-buttons">
+            <div class="modal-buttons" style="padding-bottom: max(14px, env(safe-area-inset-bottom, 14px));">
                 <span></span>
                 <button class="modal-btn modal-btn-secondary" id="cancel-settings" onclick="hideModal(document.getElementById('settings-modal'))">关闭</button>
             </div>
@@ -1973,7 +1978,7 @@ html[data-theme="dark"] #cs-transition-overlay{background:radial-gradient(circle
                 </div>
 
                 <div class="cs-panel" id="cs-panel-rhythm">
-                    <p class="cs-group-label">回复速度</p>
+                    <p class="cs-group-label">聊天回复速度</p>
                     <div class="cs-card" style="margin-bottom:10px;">
                         <div class="cs-slider-row">
                             <span class="cs-slider-label">最短等待</span>
@@ -1982,8 +1987,22 @@ html[data-theme="dark"] #cs-transition-overlay{background:radial-gradient(circle
                         </div>
                         <div class="cs-slider-row">
                             <span class="cs-slider-label">最长等待</span>
-                            <input type="range" min="1000" max="120000" step="1000" value="7000" class="font-size-slider" id="reply-delay-max-slider">
+                            <input type="range" min="1000" max="1800000" step="1000" value="7000" class="font-size-slider" id="reply-delay-max-slider">
                             <span class="cs-slider-val" id="reply-delay-max-value">7s</span>
+                        </div>
+                    </div>
+
+                    <p class="cs-group-label" style="margin-top:4px;">问卷回复时间</p>
+                    <div class="cs-card" style="margin-bottom:10px;">
+                        <div class="cs-slider-row">
+                            <span class="cs-slider-label">最短等待</span>
+                            <input type="range" min="1" max="24" step="1" value="1" class="font-size-slider" id="survey-delay-min-slider">
+                            <span class="cs-slider-val" id="survey-delay-min-value">1h</span>
+                        </div>
+                        <div class="cs-slider-row">
+                            <span class="cs-slider-label">最长等待</span>
+                            <input type="range" min="1" max="24" step="1" value="24" class="font-size-slider" id="survey-delay-max-slider">
+                            <span class="cs-slider-val" id="survey-delay-max-value">24h</span>
                         </div>
                     </div>
 
@@ -1997,7 +2016,7 @@ html[data-theme="dark"] #cs-transition-overlay{background:radial-gradient(circle
                         <div id="auto-send-control" style="display:none;">
                             <div class="cs-slider-row">
                                 <span class="cs-slider-label">间隔</span>
-                                <input type="range" min="1" max="120" step="1" value="5" class="font-size-slider" id="auto-send-slider">
+                                <input type="range" min="1" max="180" step="1" value="5" class="font-size-slider" id="auto-send-slider">
                                 <span class="cs-slider-val" id="auto-send-value">5分钟</span>
                             </div>
                         </div>
@@ -2339,6 +2358,12 @@ html[data-theme="dark"] #cs-transition-overlay{background:radial-gradient(circle
                     <div class="settings-item" id="music-player-toggle">
                         <i class="fas fa-music"></i><span>悬浮音乐播放器</span>
                     </div>
+                    <div class="settings-item" id="period-function">
+                        <i class="fas fa-tint"></i><span>经期记录</span>
+                    </div>
+                    <div class="settings-item" id="survey-function">
+                        <i class="fas fa-clipboard-list"></i><span>问卷</span>
+                    </div>
                     <div class="settings-item" id="envelope-function" style="display:none;">
                         <i class="fas fa-envelope-open-text"></i><span>信箱</span>
                     </div>
@@ -2355,6 +2380,197 @@ html[data-theme="dark"] #cs-transition-overlay{background:radial-gradient(circle
     </div>
 
 
+
+    <!-- ══════════════════════════════════════════════
+         经期记录 Modal（高级功能）
+    ══════════════════════════════════════════════ -->
+    <div class="modal" id="period-modal">
+        <div class="modal-content">
+            <div class="modal-title">
+                <i class="fas fa-tint"></i><span>经期记录</span>
+            </div>
+
+            <div id="period-body">
+
+                <!-- 统计卡片行 -->
+                <div class="pd-stats-row">
+                    <div class="pd-stat-card">
+                        <div class="pd-stat-label" id="pd-next-date-label">预测时间</div>
+                        <div class="pd-stat-value" id="pd-next-date">暂无预测</div>
+                    </div>
+                    <div class="pd-stat-card">
+                        <div class="pd-stat-label">平均经期天数</div>
+                        <div class="pd-stat-value" id="pd-avg-days">--</div>
+                    </div>
+                </div>
+                <div class="pd-longpress-hint" id="pd-predict-disclaimer"><i class="fas fa-info-circle"></i>预测仅供参考，实际可能因身体状态波动</div>
+                <div class="pd-longpress-hint" id="pd-irregular-hint" style="display:none;color:#d97757;"><i class="fas fa-exclamation-triangle"></i>你最近几次周期波动较大，这个预测的参考价值有限</div>
+
+                <!-- 日历卡片 -->
+                <div class="pd-cal-card">
+                    <div class="pd-cal-header">
+                        <button class="pd-cal-nav" id="pd-prev-month"><i class="fas fa-chevron-left"></i></button>
+                        <div class="pd-cal-month-label" id="pd-month-label">2025年1月</div>
+                        <button class="pd-cal-nav" id="pd-next-month"><i class="fas fa-chevron-right"></i></button>
+                    </div>
+                    <div class="pd-cal-weekdays">
+                        <div>日</div><div>一</div><div>二</div><div>三</div><div>四</div><div>五</div><div>六</div>
+                    </div>
+                    <div class="pd-cal-grid" id="pd-cal-grid"></div>
+                    <div class="pd-cal-footer">
+                        <div class="pd-cal-legend">
+                            <span><span class="pd-legend-dot pd-dot-period"></span> 经期</span>
+                            <span><span class="pd-legend-dot pd-dot-predict"></span> 预测</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="pd-longpress-hint"><i class="fas fa-hand-point-up"></i>长按日历格子可标记/补录经期日</div>
+
+                <!-- 今日状态卡片 -->
+                <div class="pd-status-card" id="pd-status-card">
+                    <div class="pd-status-hd">
+                        <span class="pd-status-title">今日记录</span>
+                        <span class="pd-status-date" id="pd-status-date"></span>
+                    </div>
+                    <span class="pd-status-day-tag" id="pd-status-day-tag" style="display:none;"></span>
+
+                    <div class="pd-toggle-wrap" onclick="window._pdToggleToday && window._pdToggleToday()" style="margin-bottom:14px;">
+                        <div class="pd-toggle-track" id="pd-toggle-btn"><div class="pd-toggle-thumb"></div></div>
+                        <span class="pd-toggle-label" id="pd-toggle-label">标记经期</span>
+                    </div>
+
+                    <div class="pd-section">
+                        <div class="pd-section-label">出血量</div>
+                        <div class="pd-flow-track">
+                            <button class="pd-flow-btn" data-val="1" onclick="window._pdSetFlow && window._pdSetFlow(1)"><span class="pd-flow-dot" style="background:rgba(var(--pd-flow-rgb),0.25)"></span>极少</button>
+                            <button class="pd-flow-btn" data-val="2" onclick="window._pdSetFlow && window._pdSetFlow(2)"><span class="pd-flow-dot" style="background:rgba(var(--pd-flow-rgb),0.4)"></span>少</button>
+                            <button class="pd-flow-btn" data-val="3" onclick="window._pdSetFlow && window._pdSetFlow(3)"><span class="pd-flow-dot" style="background:rgba(var(--pd-flow-rgb),0.6)"></span>正常</button>
+                            <button class="pd-flow-btn" data-val="4" onclick="window._pdSetFlow && window._pdSetFlow(4)"><span class="pd-flow-dot" style="background:rgba(var(--pd-flow-rgb),0.8)"></span>多</button>
+                            <button class="pd-flow-btn" data-val="5" onclick="window._pdSetFlow && window._pdSetFlow(5)"><span class="pd-flow-dot" style="background:rgba(var(--pd-flow-rgb),1)"></span>极多</button>
+                        </div>
+                    </div>
+
+                    <div class="pd-section">
+                        <div class="pd-section-label">症状</div>
+                        <div class="pd-symptoms-wrap" id="pd-symptoms-wrap"></div>
+                    </div>
+
+                    <button class="pd-save-btn" id="pd-save-btn" onclick="window._pdSaveRecord && window._pdSaveRecord()">保存记录</button>
+                    <div class="pd-saved-hint" id="pd-saved-hint"></div>
+                </div>
+
+                <!-- 梦角留言卡片 -->
+                <div class="pd-letter-card">
+                    <div class="pd-letter-hd">
+                        <div class="pd-partner-av" id="pd-partner-av">🌸</div>
+                        <span class="pd-letter-name" id="pd-letter-name">梦角</span>
+                    </div>
+                    <div class="pd-letter-empty" id="pd-letter-empty">还没有收到 <span id="pd-letter-pname">梦角</span> 的留言</div>
+                    <div class="pd-letter-lines" id="pd-letter-lines" style="display:none;"></div>
+                </div>
+
+            </div>
+
+            <div class="modal-buttons" style="position:sticky;bottom:0;background:var(--secondary-bg);border-top:1px solid var(--border-color);padding:12px 0 0;z-index:10;margin-top:8px;margin-left:-20px;margin-right:-20px;padding-left:max(20px, env(safe-area-inset-left, 20px));padding-right:max(20px, env(safe-area-inset-right, 20px));padding-bottom:max(14px, env(safe-area-inset-bottom, 0px));justify-content:space-between;">
+                <button class="modal-btn modal-btn-secondary" id="period-back-btn" onclick="(function(){hideModal(document.getElementById('period-modal'));showModal(document.getElementById('advanced-modal'))})()">
+                    <i class="fas fa-arrow-left"></i> 返回
+                </button>
+                <button class="modal-btn modal-btn-secondary" id="close-period" onclick="hideModal(document.getElementById('period-modal'))">关闭</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========== 问卷功能：历史记录列表页 ========== -->
+    <div class="modal" id="survey-modal">
+        <div class="modal-content" id="survey-list-content" style="max-width:400px;max-height:85vh;">
+            <div class="modal-title">
+                <span><i class="fas fa-clipboard-list"></i> 问卷</span>
+            </div>
+            <div class="survey-toolbar-row" id="survey-toolbar-row">
+                <div id="survey-fav-filter-bar"></div>
+                <div class="survey-toolbar-actions">
+                    <button type="button" class="survey-icon-btn" id="survey-trash-btn" title="回收站"><i class="fas fa-trash"></i></button>
+                    <button type="button" class="survey-icon-btn" id="survey-add-btn" title="创建问卷"><i class="fas fa-plus"></i></button>
+                </div>
+            </div>
+            <div id="survey-list-body"></div>
+            <div class="modal-buttons" style="position:sticky;bottom:0;background:var(--secondary-bg);border-top:1px solid var(--border-color);padding:12px 0 0;z-index:10;margin-top:8px;margin-left:-24px;margin-right:-24px;padding-left:max(24px, env(safe-area-inset-left, 24px));padding-right:max(24px, env(safe-area-inset-right, 24px));padding-bottom:max(14px, env(safe-area-inset-bottom, 0px));">
+                <button class="modal-btn modal-btn-secondary" id="survey-list-back-btn" onclick="(function(){hideModal(document.getElementById('survey-modal'));showModal(document.getElementById('advanced-modal'))})()">
+                    <i class="fas fa-arrow-left"></i> 返回
+                </button>
+                <button class="modal-btn modal-btn-secondary" id="survey-list-close">关闭</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========== 问卷功能：历史记录详情页 ========== -->
+    <div class="modal" id="survey-detail-modal">
+        <div class="modal-content" id="survey-detail-content" style="max-width:400px;max-height:85vh;">
+            <div class="modal-title">
+                <button type="button" class="survey-icon-btn" id="survey-detail-back" style="margin-right:2px;"><i class="fas fa-arrow-left"></i></button>
+                <span>问卷详情</span>
+            </div>
+            <div id="survey-detail-body"></div>
+            <div class="modal-buttons" id="survey-detail-actions"></div>
+        </div>
+    </div>
+
+    <!-- ========== 问卷功能：回收站 ========== -->
+    <div class="modal" id="survey-trash-modal">
+        <div class="modal-content" style="max-width:380px;max-height:80vh;">
+            <div class="modal-title">
+                <i class="fas fa-trash"></i><span>问卷回收站</span>
+            </div>
+            <div style="font-size:11.5px;color:var(--text-secondary);margin-bottom:10px;">删除的问卷会保留30天，之后自动清除</div>
+            <div id="survey-trash-body"></div>
+            <div class="modal-buttons">
+                <button class="modal-btn modal-btn-secondary" id="survey-trash-close">关闭</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========== 问卷功能 Step 1：创建问卷弹窗（我问梦角） ========== -->
+    <div class="modal" id="survey-create-modal">
+        <div class="modal-content" id="survey-create-content">
+            <div class="modal-title">
+                <i class="fas fa-clipboard-list"></i><span>创建问卷</span>
+            </div>
+
+            <div id="survey-q-list"></div>
+
+            <button type="button" class="modal-btn modal-btn-secondary" id="survey-add-q-btn" style="width:100%;margin-top:6px;">
+                <i class="fas fa-plus"></i> 新增问题
+            </button>
+
+            <div class="modal-buttons" style="position:sticky;bottom:0;background:var(--secondary-bg);border-top:1px solid var(--border-color);padding:12px 0 0;z-index:10;margin-top:14px;margin-left:-24px;margin-right:-24px;padding-left:24px;padding-right:24px;padding-bottom:max(14px, env(safe-area-inset-bottom, 0px));">
+                <button class="modal-btn modal-btn-secondary" id="survey-create-cancel">取消</button>
+                <button class="modal-btn modal-btn-primary" id="survey-create-send" disabled>发送</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 历史某天只读弹窗 -->
+    <div class="modal" id="pd-day-sheet">
+        <div class="modal-content pd-day-modal-content" style="max-width:320px;padding:20px;">
+            <button class="pd-day-close-x" onclick="window._pdCloseDaySheet && window._pdCloseDaySheet()"><i class="fas fa-times"></i></button>
+            <div class="modal-title" style="margin-bottom:14px;">
+                <i class="fas fa-calendar-day"></i><span id="pd-day-sheet-title">1月1日</span>
+            </div>
+            <div class="pd-day-info-row" id="pd-day-info-row">
+                <span class="pd-day-tag" id="pd-day-period-tag">经期第1天</span>
+            </div>
+            <div id="pd-day-content">
+                <div class="pd-section-label" style="margin-bottom:4px;">出血量</div>
+                <div class="pd-day-flow-display" id="pd-day-flow-display">暂无记录</div>
+                <div class="pd-section-label" style="margin:12px 0 4px;">症状</div>
+                <div class="pd-day-symptom-tags" id="pd-day-symptom-tags"></div>
+            </div>
+            <div class="pd-day-empty" id="pd-day-empty" style="display:none;">
+                <i class="fas fa-calendar-times"></i>
+                <div>这天没有记录</div>
+            </div>
+        </div>
+    </div>
 
     <!-- ══════════════════════════════════════════════
          声音克隆 Modal
@@ -2489,7 +2705,10 @@ html[data-theme="dark"] #cs-transition-overlay{background:radial-gradient(circle
                 </div>
                 <div class="favorites-list" id="favorites-list" style="max-height:55vh;overflow-y:auto;"></div>
             </div>
-            <div class="modal-buttons">
+            <div class="modal-buttons" style="position:sticky;bottom:0;background:var(--secondary-bg);border-top:1px solid var(--border-color);padding:12px 0 0;z-index:10;margin-top:8px;margin-left:-20px;margin-right:-20px;padding-left:max(20px, env(safe-area-inset-left, 20px));padding-right:max(20px, env(safe-area-inset-right, 20px));padding-bottom:max(14px, env(safe-area-inset-bottom, 0px));justify-content:space-between;">
+                <button class="modal-btn modal-btn-secondary" id="stats-back-btn" onclick="(function(){hideModal(document.getElementById('stats-modal'));showModal(document.getElementById('advanced-modal'))})()">
+                    <i class="fas fa-arrow-left"></i> 返回
+                </button>
                 <button class="modal-btn modal-btn-secondary" id="close-stats">关闭</button>
             </div>
         </div>
@@ -2526,8 +2745,10 @@ html[data-theme="dark"] #cs-transition-overlay{background:radial-gradient(circle
             </div>
             <div id="fl-panel-fortune" class="fl-panel fl-panel-active">
                 <div id="fortune-content"></div>
-                <div class="modal-buttons" style="margin-top:16px;">
-
+                <div class="modal-buttons" style="margin-top:16px;padding-bottom:max(14px, env(safe-area-inset-bottom, 0px));">
+                    <button class="modal-btn modal-btn-secondary" id="fl-back-btn-fortune" onclick="(function(){hideModal(document.getElementById('fortune-lenormand-modal'));showModal(document.getElementById('advanced-modal'))})()">
+                        <i class="fas fa-arrow-left"></i> 返回
+                    </button>
                     <button class="modal-btn modal-btn-secondary" id="close-fortune">关闭</button>
                 </div>
             </div>
@@ -2550,7 +2771,10 @@ html[data-theme="dark"] #cs-transition-overlay{background:radial-gradient(circle
                     </div>
                     <div id="lenormand-result" style="display:none;"></div>
                 </div>
-                <div class="modal-buttons" style="margin-top:12px;">
+                <div class="modal-buttons" style="margin-top:12px;padding-bottom:max(14px, env(safe-area-inset-bottom, 0px));">
+                    <button class="modal-btn modal-btn-secondary" id="fl-back-btn-lenormand" onclick="(function(){hideModal(document.getElementById('fortune-lenormand-modal'));showModal(document.getElementById('advanced-modal'))})()">
+                        <i class="fas fa-arrow-left"></i> 返回
+                    </button>
                     <button class="modal-btn modal-btn-secondary" id="lenormand-reset-btn" onclick="resetLenormand()" style="display:none;">重新占卜</button>
                     <button class="modal-btn modal-btn-secondary" id="close-lenormand">关闭</button>
                 </div>
@@ -2575,7 +2799,10 @@ html[data-theme="dark"] #cs-transition-overlay{background:radial-gradient(circle
                     </div>
                     <div id="tarot-result" style="display:none;"></div>
                 </div>
-                <div class="modal-buttons" style="margin-top:12px;">
+                <div class="modal-buttons" style="margin-top:12px;padding-bottom:max(14px, env(safe-area-inset-bottom, 0px));">
+                    <button class="modal-btn modal-btn-secondary" id="fl-back-btn-tarot" onclick="(function(){hideModal(document.getElementById('fortune-lenormand-modal'));showModal(document.getElementById('advanced-modal'))})()">
+                        <i class="fas fa-arrow-left"></i> 返回
+                    </button>
                     <button class="modal-btn modal-btn-secondary" id="tarot-reset-btn" onclick="resetTarotDivination()" style="display:none;">重新占卜</button>
                     <button class="modal-btn modal-btn-secondary" id="close-tarot-divination">关闭</button>
                 </div>
@@ -2590,7 +2817,10 @@ html[data-theme="dark"] #cs-transition-overlay{background:radial-gradient(circle
                     <i class="fas fa-moon" style="font-size:32px;opacity:0.3;display:block;margin-bottom:12px;"></i>
                     尚无占卜记录<br><span style="font-size:11px;opacity:0.6;">完成一次占卜后，结果将自动收录于此</span>
                 </div>
-                <div class="modal-buttons" style="margin-top:16px;">
+                <div class="modal-buttons" style="margin-top:16px;padding-bottom:max(14px, env(safe-area-inset-bottom, 0px));">
+                    <button class="modal-btn modal-btn-secondary" id="fl-back-btn-divihistory" onclick="(function(){hideModal(document.getElementById('fortune-lenormand-modal'));showModal(document.getElementById('advanced-modal'))})()">
+                        <i class="fas fa-arrow-left"></i> 返回
+                    </button>
                     <button class="modal-btn modal-btn-secondary" id="close-divihistory">关闭</button>
                 </div>
             </div>
@@ -2875,7 +3105,7 @@ html[data-theme="dark"] #cs-transition-overlay{background:radial-gradient(circle
             <div class="modal-title">
                 <i class="fas fa-scroll"></i><span>关于 & 声明</span>
             </div>
-            <div id="disclaimer-content" style="font-size: 14px; line-height: 1.8; color: var(--text-secondary); max-height: 50vh; overflow-y: auto; padding-right: 10px;">
+            <div id="disclaimer-content" style="font-size: 14px; line-height: 1.8; color: var(--text-secondary); padding-right: 10px;">
                 <div style="text-align: center; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 1px dashed var(--border-color);">
                     <h3 style="color: var(--accent-color); margin-bottom: 10px;">特别鸣谢</h3>
                     <div style="text-align: center; margin: 15px 0; padding: 10px; background-color: #f8f9fa; border-radius: 8px; border-left: 4px solid var(--accent-color);">
@@ -2889,21 +3119,24 @@ html[data-theme="dark"] #cs-transition-overlay{background:radial-gradient(circle
                     <p>感谢 <strong>@苏铂潼</strong></p>
                     <p style="font-size: 12px; opacity: 0.8;">小红书号：9568228497</p>
                     <p style="font-size: 12px; margin-top: 5px; font-style: italic;">(聊天统计部分代码参考)</p>
+                    <p style="margin-top: 10px;">感谢 <strong>@埃桠</strong></p>
+                    <p style="font-size: 12px; opacity: 0.8;">小红书号：1668732492</p>
+                    <p style="font-size: 12px; margin-top: 5px; font-style: italic;">(问卷题库内容授权)</p>
                 </div>
                 <div style="margin-top: 15px;">
                     <p style="font-weight: bold; color: var(--text-primary); text-align: center;">
                         原创：小红书 @milk (1149615009)
                     </p>
+                    <p style="font-weight: bold; color: var(--text-primary); text-align: center; margin-top: 6px;">二改：小红书 @滚筒洗衣机（962433799）</p>
                     <p style="color: #e53935; font-weight: bold; text-align: center; margin-top: 10px; border: 1px solid #e53935; padding: 5px; border-radius: 5px;">
                         此代码绝对禁止商用和盈利行为，一旦发现追究到底
                     </p>
                     <p style="text-align: center; margin-bottom: 15px;">支持二改二传，感谢使用！</p>
                     <li style="text-align: center; font-size: 1.1em; color: #8A2BE2; list-style: none; margin: 5px 0;"><b>反对性别暴力</b></li>
                     <li style="text-align: center; font-size: 1.1em; color: #8A2BE2; list-style: none; margin: 5px 0;"><b>尊重不该是奢求,安全必须是底线</b></li>
-                    <p style="text-align: center; margin-top: 12px; font-size: 12px; opacity: 0.8;">二改：@滚筒洗衣机（962433799）</p>
                 </div>
             </div>
-            <div class="modal-buttons" style="margin-top: 20px;">
+            <div class="modal-buttons" style="margin-top: 20px; padding-bottom: max(14px, env(safe-area-inset-bottom, 14px));">
                 <button class="modal-btn modal-btn-primary" id="accept-disclaimer" onclick="(function(){var m=document.getElementById('disclaimer-modal');if(m&&typeof hideModal==='function')hideModal(m);})()" style="width: 100%;">关闭</button>
             </div>
         </div>
@@ -3028,7 +3261,10 @@ html[data-theme="dark"] #cs-transition-overlay{background:radial-gradient(circle
                     <p>自定义选项随机抽取</p>
                 </div>
             </div>
-            <div class="modal-buttons">
+            <div class="modal-buttons" style="position:sticky;bottom:0;background:var(--secondary-bg);border-top:1px solid var(--border-color);padding:12px 0 0;z-index:10;margin-top:8px;margin-left:-24px;margin-right:-24px;padding-left:max(24px, env(safe-area-inset-left, 24px));padding-right:max(24px, env(safe-area-inset-right, 24px));padding-bottom:max(14px, env(safe-area-inset-bottom, 0px));">
+                <button class="modal-btn modal-btn-secondary" id="decision-back-btn" onclick="(function(){hideModal(document.getElementById('decision-menu-modal'));showModal(document.getElementById('advanced-modal'))})()">
+                    <i class="fas fa-arrow-left"></i> 返回
+                </button>
                 <button class="modal-btn modal-btn-secondary" id="close-decision-menu">关闭</button>
             </div>
         </div>
@@ -3110,6 +3346,16 @@ html[data-theme="dark"] #cs-transition-overlay{background:radial-gradient(circle
             <input type="text" class="modal-input" id="new-song-title" placeholder="歌曲名称 (例如: 这里的风景)">
             <input type="text" class="modal-input" id="new-song-sub" placeholder="歌手/备注 (例如: 你的名字)">
             <input type="text" class="modal-input" id="new-song-url" placeholder="音频链接 (mp3/m4a 链接)">
+            <div class="music-local-divider"><span>或</span></div>
+            <div class="music-local-upload-row">
+                <label class="music-local-upload-btn" id="music-local-upload-label" for="new-song-file">
+                    <i class="fas fa-upload"></i> 从本地选择音频文件
+                </label>
+                <input type="file" accept="audio/*" id="new-song-file" style="display:none;">
+                <button type="button" id="music-local-clear-btn" style="display:none;" class="music-local-clear-btn">✕</button>
+            </div>
+            <div class="music-local-filename" id="music-local-filename"></div>
+            <div class="music-local-hint" id="music-local-hint">未配置云端存储，本地音频上传不可用</div>
             <div class="modal-buttons">
                 <button class="modal-btn modal-btn-secondary" id="cancel-add-song">取消</button>
                 <button class="modal-btn modal-btn-primary" id="confirm-add-song">添加播放</button>
@@ -3297,7 +3543,10 @@ html[data-theme="dark"] #cs-transition-overlay{background:radial-gradient(circle
         </div>
 
         <!-- 关闭按钮 -->
-        <div class="modal-buttons" style="position:sticky;bottom:0;background:var(--secondary-bg);border-top:1px solid var(--border-color);padding:12px 0 0;z-index:10;margin-top:8px;margin-left:-24px;margin-right:-24px;padding-left:24px;padding-right:24px;padding-bottom:max(14px, env(safe-area-inset-bottom, 0px));">
+        <!-- 陪伴日记外层容器 .cd-modal-content 本身 padding:0（自己整个卡片式设计），
+             不像大多数弹窗默认padding:24px，所以这里不用"负margin撑满再padding回来"那套技巧，
+             直接在这个按钮条上加左右安全区padding就行，不然会跟其他弹窗一样越界被裁切、贴到屏幕边缘 -->
+        <div class="modal-buttons" style="position:sticky;bottom:0;background:var(--secondary-bg);border-top:1px solid var(--border-color);padding:12px max(24px, env(safe-area-inset-right, 24px)) max(14px, env(safe-area-inset-bottom, 0px)) max(24px, env(safe-area-inset-left, 24px));z-index:10;margin-top:8px;">
             <button class="modal-btn modal-btn-secondary" id="cd-back-btn" onclick="(function(){hideModal(document.getElementById('companion-diary-modal'));showModal(document.getElementById('advanced-modal'))})()">
                 <i class="fas fa-arrow-left"></i> 返回
             </button>
@@ -3344,6 +3593,7 @@ html[data-theme="dark"] #cs-transition-overlay{background:radial-gradient(circle
     <script src="js/data.js"></script>
     <script src="js/onboarding.js"></script> 
     <script src="js/features/anniversary.js"></script>
+    <script src="js/features/period.js"></script>
     <script src="js/listeners.js"></script>
     <script src="js/listeners-step2.js"></script>
     <script src="js/listeners-voice.js"></script>
@@ -3358,6 +3608,8 @@ html[data-theme="dark"] #cs-transition-overlay{background:radial-gradient(circle
     <script src="js/cloud-sync-ui.js"></script>
     <script src="js/app.js"></script>
     <script src="js/features/cinema.js"></script>
+    <script src="js/features/global-msg-banner.js"></script>
+    <script src="js/features/survey.js"></script>
 <!-- 相册图片详情（全屏） -->
 <div id="al-view-detail" style="display:none;position:fixed;inset:0;z-index:6000;background:#000;flex-direction:column;">
     <div class="al-detail-topbar">

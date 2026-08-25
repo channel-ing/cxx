@@ -378,15 +378,15 @@ const tourSteps = [
         position: 'bottom'
     },
     {
-        element: '#moments-header-btn',
-        title: "🏠 你们的空间",
-        content: "点击进入你们的专属空间，里面有：<br>• <b>动态</b>：一起分享日常和照片<br>• <b>心情手账</b>：一起记录每天的心情<br>• <b>纪念日</b>：一起倒数重要的日子<br>• <b>电影院</b>：约定时间一起看电影 🎬",
-        position: 'bottom'
-    },
-    {
         element: '#daily-greeting-btn',
         title: "📰 今日公告",
         content: "点击这里查看今日公告，每天会有一张专属的早安卡片，记录对方今日的心情和状态。",
+        position: 'bottom'
+    },
+    {
+        element: '#moments-header-btn',
+        title: "🏠 你们的空间",
+        content: "点击进入你们的专属空间，里面有：<br>• <b>动态</b>：一起分享日常和照片<br>• <b>心情手账</b>：一起记录每天的心情<br>• <b>纪念日</b>：一起倒数重要的日子<br>• <b>电影院</b>：约定时间一起看电影 🎬",
         position: 'bottom'
     },
     {
@@ -412,7 +412,7 @@ const tourSteps = [
     {
         element: '#advanced-settings',
         title: "🚀 高级功能 — 必看！",
-        content: "高级功能是整个 app 最丰富的板块，里面有：<br>• <b>自定义回复</b>：让对方说你想听的话<br>• <b>消息统计</b>：查看你们的聊天数据<br>• <b>陪伴日记</b>：记录每次陪伴的时光<br>• <b>悬浮音乐播放器</b>：与 Ta 一起听喜欢的音乐<br>• <b>运势·占卜</b>：每日运势<br>• <b>抉择</b>：转盘 / 硬币帮你做决定",
+        content: "高级功能是整个 app 最丰富的板块，里面有：<br>• <b>自定义回复</b>：让对方说你想听的话<br>• <b>消息统计</b>：查看你们的聊天数据<br>• <b>陪伴日记</b>：记录每次陪伴的时光<br>• <b>悬浮音乐播放器</b>：与 Ta 一起听喜欢的音乐<br>• <b>运势·占卜</b>：每日运势<br>• <b>抉择</b>：转盘 / 硬币帮你做决定<br>• <b>经期记录</b>：记录周期、标注经期日，到点了对方还会主动关心你<br>• <b>问卷</b>：你可以问 Ta 问题，Ta 也会主动来问你，答案随时能翻出来看",
         position: 'bottom'
     },
     {

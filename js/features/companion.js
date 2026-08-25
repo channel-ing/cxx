@@ -4110,11 +4110,16 @@
 
                 // 点在面板内：判断是否要关闭
                 if (target.closest('#user-sticker-picker')) {
-                    // 排除：tab 切换、添加按钮、头部、上传 input 等
+                    // 排除：tab 切换、添加按钮、头部、上传 input、分组相关（切分组/新建分组/管理分组）等——
+                    // 之前没排除分组 chip，点分组（尤其是有封面图的分组，封面本身是个 <img>）会被
+                    // 误判成"点了表情图片本身"，直接把面板关掉了，根本切不了分组
                     if (target.closest('.combo-tab-btn') ||
                         target.closest('.sticker-grid-add') ||
                         target.closest('.combo-tabs-header') ||
                         target.closest('.sticker-delete-btn') ||
+                        target.closest('.my-sticker-group-row') ||
+                        target.closest('.my-sticker-manage-link') ||
+                        target.closest('.my-sticker-action-popover') ||
                         target.tagName === 'INPUT') {
                         return;
                     }
