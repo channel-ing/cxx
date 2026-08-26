@@ -34,7 +34,9 @@
  *     }, ...
  *   ],
  *   bank: [                      // 反向问卷题库（回复库→氛围感→"问卷题库"tab 管理）
- *     { id, text, builtin: bool, hidden: bool, usedInRound: bool, groupId: null|string }
+ *     { id, text, builtin: bool, hidden: bool, drawCount: number, groupId: null|string }
+ *     // drawCount：这道题被抽中过几次——抽题永远优先抽 drawCount 最小的那一档，
+ *     // 抽过的 +1，不再用"用没用过"的是非标记（那种判法在题库刚好抽完一轮的边界上有概率重复）
  *   ],
  *   bankGroups: [                // 题库分组——交互对齐主字卡的"字卡分组"（新建/编辑/删除、筛选胶囊），
  *                                 // 但数据结构反过来：不是分组记着自己有哪些题（按文字匹配，容易重名撞车），
@@ -180,7 +182,7 @@
         var already = new Set(existing.filter(function (q) { return q.builtin; }).map(function (q) { return q.text; }));
         BUILTIN_BANK_TEXTS.forEach(function (t, i) {
             if (already.has(t)) return;
-            existing.push({ id: 'bk_' + i, text: t, builtin: true, hidden: false, usedInRound: false, groupId: undefined });
+            existing.push({ id: 'bk_' + i, text: t, builtin: true, hidden: false, drawCount: 0, groupId: undefined });
         });
         _data.bank = existing;
     }
@@ -637,7 +639,12 @@
         _save();
     }
 
-    // 抽题：不放回抽取，题库（排除隐藏的、以及所在分组被屏蔽的）问完一轮就整体重置再开始新一轮
+    // 抽题：不放回抽取，但不再用"用没用过"这种是非判断（那种判法在"题库刚好抽完一轮"
+    // 的那一瞬间会有个漏洞——重置和抽新一批是同一次操作里前后脚发生的，导致上一批最后几道题
+    // 跟下一批开头几道题有概率撞车）。改用"这道题被抽过几次"的计数器，永远优先抽计数最小的
+    // 那一档，某一档抽完了自然顺延到下一档（第一轮全部是0，抽过的变1；等全部题目都至少被
+    // 抽过一次、也就是最小计数变成1了，就在1这一档里继续抽，抽完了再顺延到2……一直滚动下去），
+    // 不存在"某个瞬间突然集体清零"这种断层，天然不会出现题库边界处的重复
     function _createAskMeBatch() {
         var pool = _data.bank.filter(function (q) {
             if (q.hidden) return false;
@@ -648,16 +655,25 @@
             return true;
         });
         if (!pool.length) return null;
-        var available = pool.filter(function (q) { return !q.usedInRound; });
-        if (!available.length) {
-            pool.forEach(function (q) { q.usedInRound = false; });
-            available = pool.slice();
-        }
+        pool.forEach(function (q) { if (typeof q.drawCount !== 'number') q.drawCount = 0; }); // 兼容老数据
+
         var kChoices = [3, 4, 5];
-        var k = Math.min(kChoices[Math.floor(Math.random() * 3)], available.length);
-        var shuffled = available.slice().sort(function () { return Math.random() - 0.5; });
-        var picked = shuffled.slice(0, k);
-        picked.forEach(function (q) { q.usedInRound = true; });
+        var k = Math.min(kChoices[Math.floor(Math.random() * 3)], pool.length);
+
+        // 按抽过的次数从低到高分档，档内随机打乱，从最低档开始一档一档取，凑够k个为止——
+        // 这样低档的题目永远先被取完，绝不会出现"新一档的题还没轮到，旧一档的题就又被抽了一次"
+        var byCount = {};
+        pool.forEach(function (q) {
+            (byCount[q.drawCount] = byCount[q.drawCount] || []).push(q);
+        });
+        var tiers = Object.keys(byCount).map(Number).sort(function (a, b) { return a - b; });
+        var picked = [];
+        for (var ti = 0; ti < tiers.length && picked.length < k; ti++) {
+            var tierItems = byCount[tiers[ti]].slice().sort(function () { return Math.random() - 0.5; });
+            var need = k - picked.length;
+            picked = picked.concat(tierItems.slice(0, need));
+        }
+        picked.forEach(function (q) { q.drawCount = (q.drawCount || 0) + 1; });
 
         var batch = {
             id: _uid('am'),
@@ -709,10 +725,25 @@
 
     // ── 问卷题库管理（回复库 → 氛围感 → "问卷题库" tab）──────────
     // 内置(60条)+自定义功能完全一致，都可编辑/删除/隐藏；隐藏的不参与 _createAskMeBatch 抽题
+
+    // 新题该给几档：混进题库里"当前正在抽的那一档"（也就是现有题目里最小的 drawCount），
+    // 不再固定给0——固定给0意味着新题会独占一个"最优先"的档位，只要一加新题、
+    // 下一批必抽它，太规律、没惊喜感了。对齐到当前最小档，就是让它跟其他还没被这一轮抽到
+    // 的老题目混在一起随机排队，会不会被抽到看运气，但也不会被晾在很后面迟迟轮不到
+    function _currentBankDrawTier() {
+        if (!_data.bank || !_data.bank.length) return 0;
+        var min = null;
+        _data.bank.forEach(function (q) {
+            var c = typeof q.drawCount === 'number' ? q.drawCount : 0;
+            if (min === null || c < min) min = c;
+        });
+        return min === null ? 0 : min;
+    }
+
     function _bankAdd(text) {
         text = (text || '').trim();
         if (!text) return;
-        _data.bank.push({ id: _uid('bk'), text: text, builtin: false, hidden: false, usedInRound: false, groupId: null });
+        _data.bank.push({ id: _uid('bk'), text: text, builtin: false, hidden: false, drawCount: _currentBankDrawTier(), groupId: null });
         _save();
     }
     function _bankEdit(id, text) {
@@ -913,12 +944,13 @@
             var seen = {};
             _data.bank.forEach(function (x) { seen[normalizeStringStrict(x.text)] = true; });
             var targetGroupId = (_selectedGroupIdx >= 0 && groups[_selectedGroupIdx]) ? groups[_selectedGroupIdx].id : null;
+            var startTier = _currentBankDrawTier(); // 批量加的这一批，统一对齐到同一档，不要越加越靠后
             var added = 0, skipped = 0;
             lines.forEach(function (val) {
                 var norm = normalizeStringStrict(val);
                 if (!norm || seen[norm]) { skipped++; return; }
                 seen[norm] = true;
-                _data.bank.push({ id: _uid('bk'), text: val, builtin: false, hidden: false, usedInRound: false, groupId: targetGroupId });
+                _data.bank.push({ id: _uid('bk'), text: val, builtin: false, hidden: false, drawCount: startTier, groupId: targetGroupId });
                 added++;
             });
             _save();
