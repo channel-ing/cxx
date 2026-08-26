@@ -2360,6 +2360,12 @@ function initReplyLibraryListeners() {
             if (currentSubTab === 'custom' || currentSubTab === 'pokes' || currentSubTab === 'statuses' || currentSubTab === 'period') {
                 _showBatchAddDialog(); return;
             }
+            if (currentSubTab === 'surveyBank') {
+                // 问卷题库有自己独立的批量添加+分组弹窗（在 survey.js 里），不能落到下面这坨通用兜底逻辑，
+                // 不然会弹出丑陋的原生 prompt()——这个共享按钮以前根本不认识这个子tab
+                if (typeof window._surveyShowBankBatchAddDialog === 'function') window._surveyShowBankBatchAddDialog();
+                return;
+            }
             let input;
             if (currentSubTab === 'intros') {
                 const l1 = prompt('请输入主标题 (如: 𝑳𝒐𝒗𝒆):');

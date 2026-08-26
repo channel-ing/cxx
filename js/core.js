@@ -561,13 +561,67 @@ const loadData = async () => {
             var needsMigration = myStickerLibrary.some(function (s) { return typeof s === 'string'; });
             if (!needsMigration) return;
             var base = Date.now();
+            var n = myStickerLibrary.length;
             myStickerLibrary = myStickerLibrary.map(function (s, i) {
                 if (typeof s === 'string') {
-                    return { id: 'stk_' + base + '_' + i, src: s, groupId: null, addedAt: base + i, groupJoinedAt: base + i };
+                    // 这个数组从老格式（纯字符串数组）那会儿开始，加新表情就一直是 unshift 塞到最前面
+                    // （见 app.js 的 myStickerLibrary.unshift），也就是说数组第0个本来就是"最新"那张，
+                    // 不是"最老"那张——时间戳要按这个真实规律倒着算，第0个给最大的时间戳，
+                    // 不然新的排序逻辑（按 addedAt 倒序）会把老数据的先后顺序整个搞反
+                    return { id: 'stk_' + base + '_' + i, src: s, groupId: null, addedAt: base + (n - 1 - i), groupJoinedAt: base + (n - 1 - i) };
                 }
                 return s; // 已经是新格式的，原样保留
             });
             try { localforage.setItem(getStorageKey('myStickerLibrary'), myStickerLibrary); } catch (e) {}
+        })();
+
+        // 一次性补救：上面那段迁移代码上线后，已经有一批用户的老表情包被那个"方向搞反"的
+        // bug 转换过一次了（转换本身已经完成，不会再走上面那条 needsMigration 分支）。
+        // 这里专门找出"当年被那个bug处理过"的那一批，把顺序倒回来——判断依据是：
+        // 一批条目的 id 共享同一个 'stk_<base>_' 前缀，且 addedAt 严格是 base, base+1, base+2...
+        // 这种连续整数（真实世界不同时间上传的表情，时间戳几乎不可能刚好差1毫秒排成这样，
+        // 这个特征几乎只有那个bug的产物才会有），符合的话就按当前数组位置重新倒序赋值一次。
+        // 用一个开关记一下修过了，不会同一批数据被反复橄来倒去
+        (function _fixMyStickerMigrationOrderBug() {
+            try {
+                if (localStorage.getItem('myStickerOrderFixApplied') === '1') return;
+            } catch (e) { return; }
+            if (!Array.isArray(myStickerLibrary) || !myStickerLibrary.length) {
+                try { localStorage.setItem('myStickerOrderFixApplied', '1'); } catch (e) {}
+                return;
+            }
+            // 按 id 里的 base 前缀分批，逐批检查是不是"连续整数"这个特征
+            var groups = {};
+            var order = [];
+            myStickerLibrary.forEach(function (entry, idx) {
+                if (!entry || typeof entry.id !== 'string') return;
+                var m = entry.id.match(/^stk_(\d+)_\d+$/);
+                if (!m) return;
+                var base = m[1];
+                if (!groups[base]) { groups[base] = []; order.push(base); }
+                groups[base].push({ entry: entry, idx: idx });
+            });
+            var fixedCount = 0;
+            order.forEach(function (base) {
+                var members = groups[base];
+                if (members.length < 2) return; // 单独一条不构成"批量迁移"的特征，跳过，避免误伤正常数据
+                // members 已经是按数组原始顺序收集的（forEach 天然顺序），检查是不是连续整数
+                var baseNum = Number(base);
+                var isSequential = members.every(function (m, i) { return m.entry.addedAt === baseNum + i; });
+                if (!isSequential) return; // 不符合特征，可能是正常数据凑巧共享了前缀，不动它
+                var n = members.length;
+                members.forEach(function (m, i) {
+                    var newVal = baseNum + (n - 1 - i);
+                    m.entry.addedAt = newVal;
+                    m.entry.groupJoinedAt = newVal;
+                });
+                fixedCount += n;
+            });
+            if (fixedCount > 0) {
+                try { localforage.setItem(getStorageKey('myStickerLibrary'), myStickerLibrary); } catch (e) {}
+                console.log('[sticker-fix] 已修正 ' + fixedCount + ' 张老表情包的排序方向');
+            }
+            try { localStorage.setItem('myStickerOrderFixApplied', '1'); } catch (e) {}
         })();
         if (savedCustomThemes) customThemes = savedCustomThemes;
         if (savedThemeSchemes) themeSchemes = savedThemeSchemes;
@@ -1086,18 +1140,7 @@ function manageAutoSendTimer() {
 
         const updateAvatar = (element, src) => {
             if (src) {
-                // src 可能是本地 base64（直接能当 img src 用），也可能是配置了云端之后
-                // 迁移出来的 oss:// 引用——这种要走 CloudMedia 懒加载解析成真正的图片地址，
-                // 直接塞进 src 浏览器认不出协议，会裂图
-                if (window.CloudMedia && window.CloudMedia.isCloudRef && window.CloudMedia.isCloudRef(src)) {
-                    var avatarImg = document.createElement('img');
-                    avatarImg.alt = 'avatar';
-                    element.innerHTML = '';
-                    element.appendChild(avatarImg);
-                    window.CloudMedia.bindLazyImage(avatarImg, src);
-                } else {
-                    element.innerHTML = `<img src="${src}" alt="avatar">`;
-                }
+                element.innerHTML = `<img src="${src}" alt="avatar">`;
                 // 同时写内存缓存，供 saveData 读取（不从 DOM img.src 读，不可靠）
                 if (!window._avatarCache) window._avatarCache = {};
                 if (element === DOMElements.partner.avatar) window._avatarCache.partner = src;
@@ -1110,17 +1153,6 @@ function manageAutoSendTimer() {
                     else if (element === DOMElements.me.avatar) window._avatarCache.me = null;
                 }
             }
-        };
-        // 给云端迁移脚本用的重新加载钩子——迁移是直接写 localforage 把头像换成 oss:// 引用，
-        // 不走这里的 updateAvatar，如果内存里的 window._avatarCache 不刷新，
-        // 下一次 saveData() 存档时就会把迁移好的地址覆盖回旧的本地 base64，等于白迁移
-        window._refreshAvatarsFromStorage = async function () {
-            try {
-                var pv = await localforage.getItem(getStorageKey('partnerAvatar'));
-                var mv = await localforage.getItem(getStorageKey('myAvatar'));
-                updateAvatar(DOMElements.partner.avatar, pv);
-                updateAvatar(DOMElements.me.avatar, mv);
-            } catch (e) {}
         };
 
         const removeBackground = () => {

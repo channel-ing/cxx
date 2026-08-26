@@ -32,6 +32,22 @@
     font-family: inherit;
 }
 
+/* 分组图标行现在整个搬到了滚动区域外面（index.html 里独立的 #my-sticker-group-row-slot），
+   physically 就不在会滚动的容器里了，不用再靠 sticky 硬撑视觉效果——这里给插槽本身
+   补一下左右内边距（跟 combo-content-area 的 16px 对齐）和背景色，视觉上跟原来一样 */
+.my-sticker-group-row-slot {
+    padding: 8px 16px 0;
+    background: var(--secondary-bg);
+    flex-shrink: 0;
+    width: 100%;
+    box-sizing: border-box;
+}
+.my-sticker-group-row-slot:empty { padding: 0; }
+/* JS 里还留着这层包装，纯粹是历史原因（之前 sticky 方案用过），现在只是个透传容器 */
+.my-sticker-group-row-sticky {
+    display: block;
+}
+/* 横向滑动 */
 .my-sticker-group-row {
     display: flex;
     align-items: center;

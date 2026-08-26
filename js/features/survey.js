@@ -1078,7 +1078,8 @@
                 if (e.target.closest('.survey-bank-group-edit-btn') || e.target.closest('.rl-group-tag')) return;
                 var gid = hdr.dataset.gid;
                 var body = rows.querySelector('.rl-group-body[data-gbody="' + gid + '"]');
-                var nowCollapsed = !(body && body.style.display !== 'none');
+                // 当前是展开的（display 不是 none）→ 点了之后应该变成收起；反过来同理
+                var nowCollapsed = !!(body && body.style.display !== 'none');
                 if (body) body.style.display = nowCollapsed ? 'none' : 'block';
                 hdr.classList.toggle('collapsed', nowCollapsed);
                 var chev = hdr.querySelector('.survey-bank-group-chevron');
@@ -1302,6 +1303,10 @@
     }
 
     window._surveyRenderBankTab = _renderBankTab;
+    // 氛围感那个共享的"新增"按钮（回复库/氛围感/公告切来切去都是同一个按钮，不管哪个子tab都显示）
+    // 本来完全不认识"问卷题库"这个子tab，点了会掉进它自己的通用兜底逻辑，弹出原生prompt()。
+    // 暴露这个出去，让 reply-library.js 那边能在按钮点击时认出"现在是问卷题库"，转发到这边来
+    window._surveyShowBankBatchAddDialog = _showBankBatchAddDialog;
     // 给云端迁移脚本（cloud-media-migration.js）用的重新加载钩子——迁移是直接写 localforage，
     // 不走这边的 _save()，如果不重新读一遍，survey.js 内存里还留着老的 base64，
     // 之后随便一个操作触发 _save() 就会把迁移好的云端地址覆盖回去，等于白迁移

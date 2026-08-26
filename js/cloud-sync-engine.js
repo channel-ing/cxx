@@ -271,11 +271,9 @@
                         payload.indexedDB[k] = v;
                         continue;
                     }
-                    // 头像（partnerAvatar / myAvatar，单值 string）：oss:// 已迁移的正常同步，
-                    // 本地存量 base64 的先跳过，不塞大图进同步包，避免payload爆炸；
-                    // 用户手动跑一次"迁移到云端"补齐之后，下次同步就会带上了
+                    // 头像（partnerAvatar / myAvatar）：不走 oss 转换那套了（太核心太常驻显示的东西，
+                    // 依赖网络加载风险太高），直接原样同步——base64 多大就传多大，图省心图可靠
                     if (k.indexOf('partnerAvatar') !== -1 || k.indexOf('myAvatar') !== -1) {
-                        if (typeof v === 'string' && v.indexOf('data:image') === 0) continue;
                         payload.indexedDB[k] = v;
                         continue;
                     }

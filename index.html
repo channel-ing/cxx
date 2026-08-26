@@ -424,6 +424,10 @@ html[data-theme="dark"] #cs-transition-overlay{background:radial-gradient(circle
                     <button onclick="window.openMyStickerSettings()" title="管理表情库" style="background:none;border:none;cursor:pointer;padding:4px 8px;color:var(--text-secondary);font-size:12px;display:flex;align-items:center;gap:3px;border-radius:6px;transition:all 0.2s;" onmouseover="this.style.background='rgba(var(--accent-color-rgb),0.12)';this.style.color='var(--accent-color)'" onmouseout="this.style.background='none';this.style.color='var(--text-secondary)'"><i class="fas fa-cog"></i></button>
                 </div>
             </div>
+            <!-- 分组图标行单独放在这里，跟 #combo-content-area 是平级兄弟，完全不在可滚动区域里面——
+                 之前用 position:sticky 想让它"看起来固定"，但手机Safari上sticky跟这个弹层的
+                 定位方式凑一起会有滚动露馅的问题，干脆物理上搬出滚动区域，从根上不存在这个可能 -->
+            <div class="my-sticker-group-row-slot" id="my-sticker-group-row-slot"></div>
             <div class="combo-content-area" id="combo-content-area">
             </div>
         </div>

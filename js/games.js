@@ -1548,6 +1548,11 @@ function initComboMenu() {
     }
 
     function renderMyStickerGroupRow() {
+        // sticky（吸顶）+ overflow-x:auto（横向滑动）这两个不能加在同一个元素上——
+        // 移动端 Safari 对这个组合支持得不好，滑动的时候下面的表情格子会从吸顶条的缝隙里"漏"出来。
+        // 拆成两层：外层只管吸顶（不设 overflow），内层只管横向滑动（不设 sticky）
+        var wrap = document.createElement('div');
+        wrap.className = 'my-sticker-group-row-sticky';
         var row = document.createElement('div');
         row.className = 'my-sticker-group-row';
         var list = _myStickerGroupsList();
@@ -1577,7 +1582,8 @@ function initComboMenu() {
                 renderMyStickerLibrary();
             };
         });
-        return row;
+        wrap.appendChild(row);
+        return wrap;
     }
 
     // 长按一个表情，弹出"设为分组封面 / 移动分组"的小浮窗
@@ -1660,7 +1666,9 @@ function initComboMenu() {
 
     function renderMyStickerLibrary() {
         contentArea.innerHTML = '';
+        var groupRowSlot = document.getElementById('my-sticker-group-row-slot');
         if (!myStickerLibrary || myStickerLibrary.length === 0) {
+            if (groupRowSlot) groupRowSlot.innerHTML = '';
             contentArea.innerHTML = `
                 <div class="empty-sticker-tip">
                     <i class="fas fa-user-circle"></i>
@@ -1671,7 +1679,12 @@ function initComboMenu() {
             return;
         }
 
-        contentArea.appendChild(renderMyStickerGroupRow());
+        // 分组图标行挂到滚动区域外面的专属插槽里，不再塞进 contentArea——
+        // 这样它跟表情格子完全不在同一个可滚动容器里，滚动的时候不可能被内容盖住/露馅
+        if (groupRowSlot) {
+            groupRowSlot.innerHTML = '';
+            groupRowSlot.appendChild(renderMyStickerGroupRow());
+        }
         var titleRow = document.createElement('div');
         titleRow.className = 'my-sticker-add-title-row';
         titleRow.innerHTML =
@@ -2059,6 +2072,8 @@ function initComboMenu() {
 
     function renderPartnerStickerLibrary() {
         contentArea.innerHTML = '';
+        var groupRowSlot = document.getElementById('my-sticker-group-row-slot');
+        if (groupRowSlot) groupRowSlot.innerHTML = ''; // 分组图标行是"我的表情"专属的，切到这个tab要清空
         if (!stickerLibrary || stickerLibrary.length === 0) {
             contentArea.innerHTML = `
                 <div class="empty-sticker-tip">
@@ -2087,6 +2102,8 @@ function initComboMenu() {
     function renderStickerLibrary() { renderMyStickerLibrary(); }
     function renderUserPokeMenu() {
         contentArea.innerHTML = '';
+        var groupRowSlot0 = document.getElementById('my-sticker-group-row-slot');
+        if (groupRowSlot0) groupRowSlot0.innerHTML = ''; // 同上，拍一拍这个tab也不需要它
 
         const wrapper = document.createElement('div');
         wrapper.className = 'poke-list-view';
