@@ -44,7 +44,7 @@
  *   bankDefaultGroupSeeded: bool, // 是否已经自动创建过"默认问题"这个分组——只在第一次种一次，
  *                                  // 用户之后删了就不会再自动冒出来
  *   askMeTrigger: { nextCheckAt: timestamp, missStreak: 0|1|2+ },
- *     // 触发概率：missStreak 0→50%，1→80%，2+→100%；中了清零；每次检查后不管中没中都重排 5-10 天后的 nextCheckAt
+ *     // 触发概率：missStreak 0→50%，1→80%，2+→100%；中了清零；每次检查后不管中没中都重排 5-8 天后的 nextCheckAt
  *   replyDelayMinHours: 1,       // 问卷回复时间区间（小时），聊天设置→节奏tab 那两个新滑块
  *   replyDelayMaxHours: 24
  * }
@@ -130,7 +130,7 @@
         if (!Array.isArray(_data.bank) || !_data.bank.length) _seedBuiltinBank();
         _ensureDefaultBankGroup();
         if (!_data.askMeTrigger) {
-            _data.askMeTrigger = { nextCheckAt: Date.now() + _randDays(5, 10), missStreak: 0 };
+            _data.askMeTrigger = { nextCheckAt: Date.now() + _randDays(5, 8), missStreak: 0 };
         }
         _loaded = true;
         _syncDelaySlidersUI();
@@ -612,7 +612,7 @@
 
     // ══ 反向问卷（梦角问我）：触发引擎 + 抽题 + 提交回答 ══════════
     //
-    // 触发概率：5-10天随机检查一次；上次触发过 → 这次50%；上次没中 → 这次80%；
+    // 触发概率：5-8天随机检查一次；上次触发过 → 这次50%；上次没中 → 这次80%；
     // 再没中 → 这次100%必中。中了就把 missStreak 清零，重新从50%开始下一轮计时。
     function _checkAskMeTrigger() {
         if (!_loaded) return;
@@ -629,11 +629,11 @@
                 _refreshOpenViews();
             }
             // 题库里没有可用题目（比如全被隐藏了）就当这次白抽，missStreak 不变，
-            // 照样往下重新排一次 5-10 天后的检查时间，不会卡住
+            // 照样往下重新排一次 5-8 天后的检查时间，不会卡住
         } else {
             t.missStreak++;
         }
-        t.nextCheckAt = Date.now() + _randDays(5, 10);
+        t.nextCheckAt = Date.now() + _randDays(5, 8);
         _save();
     }
 
@@ -1954,7 +1954,7 @@
         _toggleFavorite(rec.id, src);
         console.log('[survey] 收藏状态：', rec.favorited);
     };
-    // 强制立刻触发一次反向问卷（不用等5-10天），传 true 强制必中（跳过概率判定），方便测试抽题/去重逻辑
+    // 强制立刻触发一次反向问卷（不用等5-8天），传 true 强制必中（跳过概率判定），方便测试抽题/去重逻辑
     window._surveyDebugForceAskMe = function (forceHit) {
         if (forceHit) {
             var batch = _createAskMeBatch();
