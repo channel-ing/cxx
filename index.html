@@ -3365,9 +3365,10 @@ html[data-theme="dark"] #cs-transition-overlay{background:radial-gradient(circle
                 <label class="music-local-upload-btn" id="music-local-upload-label" for="new-song-file">
                     <i class="fas fa-upload"></i> 从本地选择音频文件
                 </label>
-                <input type="file" accept="audio/*" id="new-song-file" style="display:none;">
+                <input type="file" id="new-song-file" style="display:none;">
                 <button type="button" id="music-local-clear-btn" style="display:none;" class="music-local-clear-btn">✕</button>
             </div>
+            <div style="font-size:10.5px;color:var(--text-secondary);opacity:0.55;margin:-2px 0 8px;line-height:1.4;">支持 mp3 / m4a / wav / flac 等常见音频格式</div>
             <div class="music-local-filename" id="music-local-filename"></div>
             <div class="music-local-hint" id="music-local-hint">未配置云端存储，本地音频上传不可用</div>
             <div class="modal-buttons">
