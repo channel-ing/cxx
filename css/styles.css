@@ -6287,7 +6287,7 @@
             height 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275),
             border-radius 0.4s ease,
             opacity 0.3s ease, visibility 0.3s ease;
-            z-index: 990;
+            z-index: 1550; /* 需高于 #couple-space-page(1500)，否则打开情侣空间后播放器会被盖住 */
             overflow: hidden;
             cursor: grab;
             border: 1px solid rgba(var(--accent-color-rgb), 0.12);

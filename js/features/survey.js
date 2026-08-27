@@ -1673,6 +1673,7 @@
         if (rec && rec.viewed === false) {
             rec.viewed = true;
             _save();
+            _updateEntryBadges();
         }
         _renderDetail();
         if (typeof window.showModal === 'function') window.showModal(document.getElementById('survey-detail-modal'));
@@ -1944,6 +1945,30 @@
         if (listModal && getComputedStyle(listModal).display !== 'none') _renderListBody();
         var detailModal = document.getElementById('survey-detail-modal');
         if (detailModal && getComputedStyle(detailModal).display !== 'none' && _detailCurrentId) _renderDetail();
+        _updateEntryBadges();
+    }
+
+    // 未读数：我问梦角已回复但没点开看过的 + 梦角问我发来的新问题没点开看过的，
+    // 两种都算——跟每条记录列表页里"new"角标用的是同一个 viewed 字段，口径完全一致
+    function _getUnreadCount() {
+        if (!_loaded) return 0;
+        var count = 0;
+        _data.askPartner.forEach(function (s) {
+            if (!s.deletedAt && s.status === 'answered' && s.viewed === false) count++;
+        });
+        _data.askMe.forEach(function (s) {
+            if (!s.deletedAt && s.status === 'sent' && s.viewed === false) count++;
+        });
+        return count;
+    }
+
+    // 问卷入口 → 高级功能卡片 → 设置icon，三层小红点跟着同一个未读数亮灭
+    function _updateEntryBadges() {
+        var has = _getUnreadCount() > 0;
+        ['survey-entry-badge', 'advanced-entry-badge', 'settings-entry-badge'].forEach(function (id) {
+            var el = document.getElementById(id);
+            if (el) el.style.display = has ? 'inline-block' : 'none';
+        });
     }
 
     // ── 调试用（console 里跑，不会自动执行）──────────────────────
@@ -2048,6 +2073,7 @@
     _load().then(function () {
         _cleanTrash();
         _save();
+        _updateEntryBadges();
         setTimeout(function () { _checkDueSurveys(); _checkAskMeTrigger(); _checkAskMeReceiveDue(); }, 4000);
     });
 })();
