@@ -346,6 +346,9 @@
     function _scheduleTodayNotifIfNeeded() {
         var active = _activePeriod();
         if (!active) return;
+        // 开关：聊天设置-节奏tab里的"经期不留言"——开启后跳过今天的留言安排，
+        // 不影响"预测经期前一天提醒"（那是 _checkPredictReminder 的逻辑）
+        if (typeof settings !== 'undefined' && settings.periodNoMsgEnabled) return;
         var today = _today();
         if (_data.notifyPeriodId === active.id && _data.dailyNotifDate === today) return;  // 今天已经安排过
 

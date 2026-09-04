@@ -2524,6 +2524,15 @@
 
     async function _runPartnerInviteCheck() {
         await Promise.all([_wlLoad(), _histLoad(), _negoLoad(), _apptLoad()]);
+        // 开关：空间设置里关闭了"梦角主动邀请看电影"——跳过这次触发，
+        // 但照常重排下一次检查时间，不影响用户自己发起邀请
+        if (window._csSettings && window._csSettings.partnerInviteEnabled === false) {
+            var offDays = 5 + Math.random() * 2;
+            _partnerInviteState.nextCheckAt = Date.now() + offDays * 86400000;
+            _partnerInviteSave();
+            _scheduleNextPartnerInviteCheck();
+            return;
+        }
         // 只有在"没有约定、没有协商中"的时候才可能触发，不然会跟用户自己发的邀请撞车
         var canInvite = _uiState === 'empty' && !(_negoState && _negoState.active);
         var missed = _partnerInviteState.missedCount || 0;
@@ -2618,6 +2627,14 @@
             }
             _startPartnerInvite();
             console.log('[cinema] 已触发梦角主动邀请，去主聊天看邀请卡');
+        });
+    };
+    // 跟上面那个不一样：这个走的是真实的定时检查函数 _runPartnerInviteCheck，
+    // 会经过"空间设置-梦角主动邀请看电影"开关判断，专门用来测试开关是否生效
+    // （上面那个 _cinemaDebugTriggerPartnerInvite 是跳过开关直接触发，测不出开关效果）
+    window._cinemaDebugTriggerPartnerInviteCheck = function () {
+        _runPartnerInviteCheck().then(function () {
+            console.log('[cinema] 已跑一次真实检查（含开关判断），状态：', _partnerInviteState);
         });
     };
     window._cinemaDebugPartnerInviteStatus = function () {

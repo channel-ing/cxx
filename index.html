@@ -1073,6 +1073,30 @@ html[data-theme="dark"] #cs-transition-overlay{background:radial-gradient(circle
 
             <!-- 其他开关 -->
             <div class="settings-section">
+                <div class="settings-section-title"><i class="fas fa-bolt"></i> 主动行为</div>
+                <div class="cs-settings-row cs-settings-toggle-row">
+                    <div>
+                        <div class="cs-settings-label">ta不主动邀请看电影</div>
+                        <div class="cs-settings-desc">开启后ta不会主动邀请你去电影院，你仍然可以主动邀请ta</div>
+                    </div>
+                    <label class="cs-toggle-label">
+                        <input type="checkbox" id="cs-cinema-invite-toggle">
+                        <span class="notif-toggle-slider"></span>
+                    </label>
+                </div>
+                <div class="cs-settings-row cs-settings-toggle-row">
+                    <div>
+                        <div class="cs-settings-label">ta不主动发动态</div>
+                        <div class="cs-settings-desc">开启后ta不会自己发动态，评论/点赞你的动态不受影响</div>
+                    </div>
+                    <label class="cs-toggle-label">
+                        <input type="checkbox" id="cs-partner-moment-toggle">
+                        <span class="notif-toggle-slider"></span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="settings-section">
                 <div class="settings-section-title"><i class="fas fa-sliders-h"></i> 其他</div>
                 <div class="cs-settings-row cs-settings-toggle-row">
                     <div>
@@ -2032,6 +2056,20 @@ html[data-theme="dark"] #cs-transition-overlay{background:radial-gradient(circle
                                 <input type="range" min="1" max="180" step="1" value="5" class="font-size-slider" id="auto-send-slider">
                                 <span class="cs-slider-val" id="auto-send-value">5分钟</span>
                             </div>
+                        </div>
+                    </div>
+
+                    <p class="cs-group-label" style="margin-top:4px;">主动行为</p>
+                    <div class="cs-card">
+                        <div class="setting-pill-row" id="survey-no-ask-toggle">
+                            <span class="setting-pill-icon"><i class="fas fa-clipboard-list"></i></span>
+                            <span class="setting-pill-label">ta不主动发问卷 <span style="font-size:11px;color:var(--text-secondary);font-weight:400;">开启后ta不会主动给你发调查问卷</span></span>
+                            <div class="setting-pill-switch"><div class="setting-pill-knob"></div></div>
+                        </div>
+                        <div class="setting-pill-row" id="period-no-msg-toggle" style="border-top:1px solid var(--border-color);">
+                            <span class="setting-pill-icon"><i class="fas fa-comment-slash"></i></span>
+                            <span class="setting-pill-label">经期不留言 <span style="font-size:11px;color:var(--text-secondary);font-weight:400;">开启后经期期间ta不会主动留言</span></span>
+                            <div class="setting-pill-switch"><div class="setting-pill-knob"></div></div>
                         </div>
                     </div>
 

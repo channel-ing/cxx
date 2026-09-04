@@ -621,6 +621,14 @@
         var t = _data.askMeTrigger;
         if (!t || Date.now() < t.nextCheckAt) return;
 
+        // 开关：聊天设置-节奏tab里的"梦角不主动发问卷"——开启后跳过这次触发，
+        // 但照常重排下一次检查时间（missStreak 不变，开关关闭后从原来的进度继续）
+        if (typeof settings !== 'undefined' && settings.surveyNoAskEnabled) {
+            t.nextCheckAt = Date.now() + _randDays(5, 8);
+            _save();
+            return;
+        }
+
         var prob = t.missStreak === 0 ? 0.5 : (t.missStreak === 1 ? 0.8 : 1);
         var hit = Math.random() < prob;
         if (hit) {

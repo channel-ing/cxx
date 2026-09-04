@@ -15,7 +15,7 @@ const _M_DLY_MAX = 20 * 60 * 1000;
 const _CS_SETTINGS_KEY = 'csSpaceSettings';
 
 // 情侣空间设置（默认值）
-let _csSettings = { dlyMin: 5, dlyMax: 20, savePartnerImg: false, allowReadNoReply: false, readNoReplyChance: 0.2, cmtCombineCards: false, emojiMixEnabled: false };
+let _csSettings = { dlyMin: 5, dlyMax: 20, savePartnerImg: false, allowReadNoReply: false, readNoReplyChance: 0.2, cmtCombineCards: false, emojiMixEnabled: false, partnerInviteEnabled: true, partnerMomentEnabled: true };
 
 // 情侣空间"已读不回"判定：关闭开关时必回；开启后按 readNoReplyChance 概率跳过。
 // 统一给"梦角评论新动态"和"梦角回复用户评论"这两处共用。
@@ -199,7 +199,7 @@ async function _checkAction(){
         const next=await localforage.getItem(KEY);if(next!==null&&now<next)return;
         await localforage.setItem(KEY,now+_M_CD_MIN+Math.random()*(_M_CD_MAX-_M_CD_MIN));
         if(Math.random()<0.40){if(typeof window._generatePartnerLetter==='function')window._generatePartnerLetter();}
-        if(Math.random()<0.70){await generatePartnerMoment();}
+        if(_csSettings.partnerMomentEnabled!==false && Math.random()<0.70){await generatePartnerMoment();}
     }catch(e){console.warn('[Moments] _checkAction 失败',e);}
 }
 
@@ -883,6 +883,18 @@ window.openCsSettings = async function () {
     if (emojiMixToggle) {
         emojiMixToggle.checked = !!_csSettings.emojiMixEnabled;
         emojiMixToggle.onchange = () => { _csSettings.emojiMixEnabled = emojiMixToggle.checked; _saveCsSettings(); };
+    }
+
+    const cinemaInviteToggle = document.getElementById('cs-cinema-invite-toggle');
+    if (cinemaInviteToggle) {
+        cinemaInviteToggle.checked = _csSettings.partnerInviteEnabled !== false;
+        cinemaInviteToggle.onchange = () => { _csSettings.partnerInviteEnabled = cinemaInviteToggle.checked; _saveCsSettings(); };
+    }
+
+    const partnerMomentToggle = document.getElementById('cs-partner-moment-toggle');
+    if (partnerMomentToggle) {
+        partnerMomentToggle.checked = _csSettings.partnerMomentEnabled !== false;
+        partnerMomentToggle.onchange = () => { _csSettings.partnerMomentEnabled = partnerMomentToggle.checked; _saveCsSettings(); };
     }
 
     // ── 壁纸画廊 ──
