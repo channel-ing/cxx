@@ -575,6 +575,18 @@
     // Step 2：梦角选择算法 + 到点检查 + 提醒机制 + 历史列表/详情页
     // ══════════════════════════════════════════════════════════════
 
+    // ── 标准 Fisher-Yates 洗牌：真正保证每种排列等概率出现，比 sort(()=>Math.random()-0.5)
+    //    这种写法更严谨——后者在数学上不是均匀洗牌，虽然偏差很小、肉眼很难察觉，但既然有人
+    //    在意"是不是真随机"，这里干脆换成业内公认无争议的标准实现 ──
+    function _shuffleArray(arr) {
+        var a = arr.slice();
+        for (var i = a.length - 1; i > 0; i--) {
+            var j = Math.floor(Math.random() * (i + 1));
+            var tmp = a[i]; a[i] = a[j]; a[j] = tmp;
+        }
+        return a;
+    }
+
     // ── 梦角选择算法：单选等概率随机1个；多选先等概率随机决定选几个(1~选项总数)，
     //    再洗牌取前K个——保证不会出现"总是全选"或"总是只选1个"这种明显不公平的偏向 ──
     function _computeSelection(question) {
@@ -584,7 +596,7 @@
             return [question.options[idx].id];
         }
         var k = 1 + Math.floor(Math.random() * n); // 1 ~ n 等概率
-        var shuffled = question.options.slice().sort(function () { return Math.random() - 0.5; });
+        var shuffled = _shuffleArray(question.options);
         return shuffled.slice(0, k).map(function (o) { return o.id; });
     }
 
@@ -677,7 +689,7 @@
         var tiers = Object.keys(byCount).map(Number).sort(function (a, b) { return a - b; });
         var picked = [];
         for (var ti = 0; ti < tiers.length && picked.length < k; ti++) {
-            var tierItems = byCount[tiers[ti]].slice().sort(function () { return Math.random() - 0.5; });
+            var tierItems = _shuffleArray(byCount[tiers[ti]]);
             var need = k - picked.length;
             picked = picked.concat(tierItems.slice(0, need));
         }
