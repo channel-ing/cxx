@@ -263,8 +263,6 @@ function loadMoreFuture() {
                 partnerAvatarShape: 'circle',
 autoSendEnabled: false,
 autoSendInterval: 5,
-surveyNoAskEnabled: false,
-periodNoMsgEnabled: false,
         allowReadNoReply: false, 
         readNoReplyChance: 0.2,
         combineReplyCards: false,
@@ -1125,9 +1123,7 @@ function manageAutoSendTimer() {
                 '#typing-indicator-toggle': 'typingIndicatorEnabled',
                 '#read-no-reply-toggle': 'allowReadNoReply',
                 '#emoji-mix-toggle': 'emojiMixEnabled',
-                '#auto-send-toggle': 'autoSendEnabled',
-                '#survey-no-ask-toggle': 'surveyNoAskEnabled',
-                '#period-no-msg-toggle': 'periodNoMsgEnabled'
+                '#auto-send-toggle': 'autoSendEnabled'
             };
             for (const [sel, prop] of Object.entries(_pillSyncMap)) {
                 const el = document.querySelector(sel);

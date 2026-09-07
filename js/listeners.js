@@ -572,9 +572,7 @@ if (_chatSettingsEl) _chatSettingsEl.addEventListener('click', () => {
         '#read-receipts-toggle': { prop: 'readReceiptsEnabled', name: '已读回执' },
         '#typing-indicator-toggle': { prop: 'typingIndicatorEnabled', name: '正在输入' },
         '#read-no-reply-toggle': { prop: 'allowReadNoReply', name: '已读不回' },
-        '#emoji-mix-toggle': { prop: 'emojiMixEnabled', name: '表情消息' },
-        '#survey-no-ask-toggle': { prop: 'surveyNoAskEnabled', name: '梦角不主动发问卷' },
-        '#period-no-msg-toggle': { prop: 'periodNoMsgEnabled', name: '经期不留言' }
+        '#emoji-mix-toggle': { prop: 'emojiMixEnabled', name: '表情消息' }
     };
     for (const [selector, { prop }] of Object.entries(toggleSyncMap)) {
         const el = document.querySelector(selector);
@@ -1228,9 +1226,7 @@ if (_chatSettingsEl) _chatSettingsEl.addEventListener('click', () => {
                 '#typing-indicator-toggle': {
                     prop: 'typingIndicatorEnabled', name: '正在输入'},
                     '#read-no-reply-toggle': { prop: 'allowReadNoReply', name: '已读不回' },
-                    '#emoji-mix-toggle': { prop: 'emojiMixEnabled', name: '表情混入消息' },
-                    '#survey-no-ask-toggle': { prop: 'surveyNoAskEnabled', name: '梦角不主动发问卷' },
-                    '#period-no-msg-toggle': { prop: 'periodNoMsgEnabled', name: '经期不留言' }
+                    '#emoji-mix-toggle': { prop: 'emojiMixEnabled', name: '表情混入消息' }
 };
 
             for (const [selector, {
