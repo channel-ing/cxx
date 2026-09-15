@@ -1642,12 +1642,15 @@ function initComboMenu() {
     }
 
     function makeMyStickerItem(entry, onClick, onDelete) {
+        // 单个表情格子右上角的×已去掉——右上角"管理"弹层里已经有批量删除/移动分组功能，
+        // 两处删除入口重复，保留"管理"那一个就够，onDelete 参数先保留不动（调用方还传着），
+        // 只是这里不再渲染×、不再绑定删除点击
         const item = document.createElement('div');
         item.className = 'sticker-grid-item';
         item.style.position = 'relative';
         var src = entry.src;
         const isCloud = typeof src === 'string' && src.indexOf('oss://') === 0;
-        item.innerHTML = `<img loading="lazy"><div class="sticker-delete-btn" title="删除"><i class="fas fa-times"></i></div>`;
+        item.innerHTML = `<img loading="lazy">`;
         const imgEl = item.querySelector('img');
         if (isCloud) {
             if (window.CloudMedia) window.CloudMedia.bindLazyImage(imgEl, src);
@@ -1660,7 +1663,6 @@ function initComboMenu() {
             onClick();
         };
         _bindStickerLongPress(imgEl, entry);
-        item.querySelector('.sticker-delete-btn').onclick = (e) => { e.stopPropagation(); onDelete(); };
         return item;
     }
 
