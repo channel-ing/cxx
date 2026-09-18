@@ -242,9 +242,23 @@ if (myStickerQuickUpload) {
     myStickerQuickUpload.addEventListener('change', async (e) => {
         const files = Array.from(e.target.files);
         if (!files.length) return;
-        const oversized = files.filter(f => f.size > 2 * 1024 * 1024);
-        if (oversized.length > 0) showNotification(oversized.length + ' 张图片超过 2MB，已跳过', 'warning');
-        const validFiles = files.filter(f => f.size <= 2 * 1024 * 1024);
+
+        // GIF 走单独的上限——不能套用下面给普通图片压缩用的 optimizeImage，
+        // 那个压缩是拿 canvas 重新画一遍，GIF 动画只能留下第一帧，会变成静态图
+        const GIF_MAX_SIZE = 600 * 1024;
+        const NORMAL_MAX_SIZE = 2 * 1024 * 1024;
+        const isGifFile = f => f.type === 'image/gif' || /\.gif$/i.test(f.name);
+
+        const oversized = files.filter(f => f.size > (isGifFile(f) ? GIF_MAX_SIZE : NORMAL_MAX_SIZE));
+        if (oversized.length > 0) {
+            const gifCount = oversized.filter(isGifFile).length;
+            const otherCount = oversized.length - gifCount;
+            const parts = [];
+            if (gifCount > 0) parts.push(`${gifCount} 张GIF超过600KB`);
+            if (otherCount > 0) parts.push(`${otherCount} 张图片超过2MB`);
+            showNotification(parts.join('，') + '，已跳过', 'warning');
+        }
+        const validFiles = files.filter(f => f.size <= (isGifFile(f) ? GIF_MAX_SIZE : NORMAL_MAX_SIZE));
         if (!validFiles.length) return;
         showNotification('正在处理 ' + validFiles.length + ' 张...', 'info');
         let ok = 0, fail = 0;
@@ -252,7 +266,18 @@ if (myStickerQuickUpload) {
         const cloudReady = !!(window.CloudMedia && window.CloudSync && window.CloudSync.isConnected());
         for (const file of validFiles) {
             try {
-                const base64 = await optimizeImage(file, 300, 0.8);
+                let base64;
+                if (isGifFile(file)) {
+                    // GIF 原样读成 base64，不经过压缩，保留动画
+                    base64 = await new Promise((resolve, reject) => {
+                        const reader = new FileReader();
+                        reader.onload = ev => resolve(ev.target.result);
+                        reader.onerror = reject;
+                        reader.readAsDataURL(file);
+                    });
+                } else {
+                    base64 = await optimizeImage(file, 300, 0.8);
+                }
                 let toStore = base64;
                 if (cloudReady) {
                     try {
