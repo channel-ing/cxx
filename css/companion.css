@@ -1749,3 +1749,173 @@ html[data-theme="dark"] .companion-mode-card i {
     background: rgba(var(--accent-color-rgb, 197,164,126), 0.45);
     color: #fff;
 }
+
+/* ────────────────────────────────────────────────────────────────
+   陪伴语音/白噪音体验优化：
+   1) 外观设置里上传语音/白噪音时的进度条
+   2) 外观设置"试听"按钮 播放/暂停 图标（复用 .companion-mgr-iconbtn，无需新样式）
+   3) 陪伴过程中"选背景音/我的音乐"卡片里的迷你播放器（暂停/继续+拖动进度+上一首/下一首）
+   4) 陪伴过程中"添加更多音乐"上传时的进度条
+   ──────────────────────────────────────────────────────────────── */
+
+/* 设置里：语音/白噪音卡片处于上传中的样式（跟正常卡片同尺寸，内容换成进度条） */
+.companion-voice-upload-wrap {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 0 4px;
+}
+.companion-voice-upload-name {
+    font-size: 12px;
+    color: var(--text-primary, #1a1a1a);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.companion-voice-upload-progress {
+    position: relative;
+    height: 6px;
+    border-radius: 3px;
+    background: rgba(var(--accent-color-rgb, 197,164,126), 0.15);
+    overflow: hidden;
+}
+.companion-voice-upload-bar {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    background: var(--accent-color, #c5a47e);
+    transition: width 0.4s ease;
+}
+.companion-voice-upload-tag {
+    font-size: 10px;
+    color: var(--text-secondary, #888);
+    flex-shrink: 0;
+    white-space: nowrap;
+}
+
+/* 陪伴中"添加更多音乐"上传时，列表项里的进度条（比设置里的更细，融进原有列表项样式） */
+.companion-noise-list-item-uploading {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 10px 14px !important;
+    gap: 8px;
+    cursor: default;
+}
+.companion-noise-upload-progress-inline {
+    position: relative;
+    height: 5px;
+    border-radius: 3px;
+    background: rgba(var(--accent-color-rgb, 197,164,126), 0.15);
+    overflow: hidden;
+}
+.companion-noise-upload-progress-bar {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    background: var(--accent-color, #c5a47e);
+    transition: width 0.4s ease;
+}
+
+/* 迷你播放器：替代原来纯展示的"正在播放"提示条 */
+.companion-noise-player {
+    margin-top: 12px;
+    padding: 10px 14px;
+    background: rgba(var(--accent-color-rgb, 197,164,126), 0.08);
+    border: 1px solid rgba(var(--accent-color-rgb, 197,164,126), 0.18);
+    border-radius: 10px;
+}
+.companion-noise-player-toprow {
+    overflow: hidden;
+}
+.companion-noise-player-track {
+    overflow: hidden;
+    position: relative;
+    height: 18px;
+    -webkit-mask-image: linear-gradient(to right, transparent 0, black 12px, black calc(100% - 12px), transparent 100%);
+    mask-image: linear-gradient(to right, transparent 0, black 12px, black calc(100% - 12px), transparent 100%);
+}
+.companion-noise-player-name {
+    display: inline-block;
+    white-space: nowrap;
+    font-size: 13px;
+    color: var(--text-primary, #1a1a1a);
+    font-weight: 500;
+    line-height: 18px;
+}
+.companion-noise-player-name.scrolling {
+    animation: companion-marquee linear infinite;
+    padding-left: 100%;
+}
+.companion-noise-player-ctrlrow {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 8px;
+}
+.companion-noise-player-btn {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    border: none;
+    background: transparent;
+    color: var(--accent-color, #c5a47e);
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: all 0.15s ease;
+}
+.companion-noise-player-btn:hover {
+    background: rgba(var(--accent-color-rgb, 197,164,126), 0.14);
+}
+.companion-noise-player-btn-main {
+    width: 30px;
+    height: 30px;
+    background: var(--accent-color, #c5a47e);
+    color: #fff;
+    font-size: 13px;
+}
+.companion-noise-player-btn-main:hover {
+    background: var(--accent-color, #c5a47e);
+    opacity: 0.85;
+}
+.companion-noise-player-seek {
+    flex: 1;
+    min-width: 0;
+    height: 4px;
+    -webkit-appearance: none;
+    appearance: none;
+    background: rgba(var(--accent-color-rgb, 197,164,126), 0.2);
+    border-radius: 2px;
+    cursor: pointer;
+    outline: none;
+}
+.companion-noise-player-seek::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--accent-color, #c5a47e);
+    cursor: pointer;
+}
+.companion-noise-player-seek::-moz-range-thumb {
+    width: 12px;
+    height: 12px;
+    border: none;
+    border-radius: 50%;
+    background: var(--accent-color, #c5a47e);
+    cursor: pointer;
+}
+.companion-noise-player-time {
+    font-size: 10px;
+    color: var(--text-secondary, #888);
+    flex-shrink: 0;
+    min-width: 26px;
+    text-align: center;
+}
