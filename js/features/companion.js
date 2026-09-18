@@ -62,6 +62,11 @@
     let currentNoiseAudio = null;  // 白噪音独立 Audio 实例（与 currentAudio 叠加播放）
     let isVoicePanelOpen = false;
 
+    // 外观设置 → 陪伴语音/白噪音管理列表里的"试听"播放器——跟正式的 currentAudio/currentNoiseAudio
+    // 完全独立，只是让用户在列表里点一下听个片段，不影响正式的陪伴语音播放/白噪音播放
+    let _previewAudio = null;
+    let _previewPlayingId = null;
+
     // ─── 存储 ────────────────────────────────────────────────────────────────
 
     function _emptyData() {
@@ -1936,6 +1941,136 @@
         }
     }
 
+    // ── "正在播放"迷你播放器：暂停/继续 + 拖动进度条 + 上一首/下一首 ──
+    // 只在重新打开"选背景音"/"我的音乐"卡片时才生成这块 UI（不常驻），
+    // 所以不用担心悬浮球本身要不要跟着改——悬浮球点击行为完全没动。
+    // 用 currentNoiseAudio 本身作为播放/进度的数据源，这里只是给它加一层可操作的界面。
+
+    function _fmtNoiseTime(sec) {
+        if (!isFinite(sec) || sec < 0) sec = 0;
+        const m = Math.floor(sec / 60);
+        const s = Math.floor(sec % 60);
+        return m + ':' + (s < 10 ? '0' : '') + s;
+    }
+
+    // 生成迷你播放器的 HTML（歌名 + 上一首/播放暂停/下一首 + 进度条）
+    function _noisePlayerHTML(songName) {
+        return `
+            <div class="companion-noise-player">
+                <div class="companion-noise-player-toprow">
+                    <div class="companion-noise-player-track">
+                        <span class="companion-noise-player-name">${escapeHtml(songName || '未命名')}</span>
+                    </div>
+                </div>
+                <div class="companion-noise-player-ctrlrow">
+                    <button class="companion-noise-player-btn" data-noiseplayer="prev" title="上一首"><i class="fas fa-backward-step"></i></button>
+                    <button class="companion-noise-player-btn companion-noise-player-btn-main" data-noiseplayer="toggle" title="暂停/播放"><i class="fas fa-pause"></i></button>
+                    <button class="companion-noise-player-btn" data-noiseplayer="next" title="下一首"><i class="fas fa-forward-step"></i></button>
+                    <span class="companion-noise-player-time" data-noiseplayer="cur">0:00</span>
+                    <input type="range" class="companion-noise-player-seek" data-noiseplayer="seek" min="0" max="100" value="0">
+                    <span class="companion-noise-player-time" data-noiseplayer="dur">0:00</span>
+                </div>
+            </div>
+        `;
+    }
+
+    // 绑定迷你播放器的交互 + 启动一个"自清理"的定时器同步进度
+    // （root 不在页面里了定时器自己停，不需要每个关闭入口都手动清理一次）
+    function _bindNoisePlayer(root) {
+        if (!root) return;
+        const player = root.querySelector('.companion-noise-player');
+        if (!player) return;
+
+        const toggleBtn = player.querySelector('[data-noiseplayer="toggle"]');
+        const prevBtn = player.querySelector('[data-noiseplayer="prev"]');
+        const nextBtn = player.querySelector('[data-noiseplayer="next"]');
+        const seek = player.querySelector('[data-noiseplayer="seek"]');
+        const curEl = player.querySelector('[data-noiseplayer="cur"]');
+        const durEl = player.querySelector('[data-noiseplayer="dur"]');
+        let dragging = false;
+
+        function syncIcon() {
+            const icon = toggleBtn.querySelector('i');
+            if (!icon) return;
+            const playing = currentNoiseAudio && !currentNoiseAudio.paused;
+            icon.className = playing ? 'fas fa-pause' : 'fas fa-play';
+        }
+
+        function syncProgress() {
+            if (!currentNoiseAudio || dragging) { syncIcon(); return; }
+            const dur = currentNoiseAudio.duration;
+            if (isFinite(dur) && dur > 0) {
+                seek.value = Math.round((currentNoiseAudio.currentTime / dur) * 100);
+                durEl.textContent = _fmtNoiseTime(dur);
+            }
+            curEl.textContent = _fmtNoiseTime(currentNoiseAudio.currentTime);
+            syncIcon();
+        }
+
+        syncProgress();
+        const timer = setInterval(() => {
+            if (!root.isConnected) { clearInterval(timer); return; } // 卡片已经关掉了，自己停
+            syncProgress();
+        }, 500);
+
+        toggleBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (!currentNoiseAudio) return;
+            if (currentNoiseAudio.paused) currentNoiseAudio.play().catch(() => {});
+            else currentNoiseAudio.pause();
+            syncIcon();
+        });
+        seek.addEventListener('pointerdown', () => { dragging = true; });
+        seek.addEventListener('input', () => {
+            if (currentNoiseAudio && isFinite(currentNoiseAudio.duration)) {
+                curEl.textContent = _fmtNoiseTime((seek.value / 100) * currentNoiseAudio.duration);
+            }
+        });
+        const commitSeek = () => {
+            if (currentNoiseAudio && isFinite(currentNoiseAudio.duration)) {
+                currentNoiseAudio.currentTime = (seek.value / 100) * currentNoiseAudio.duration;
+            }
+            dragging = false;
+        };
+        seek.addEventListener('change', commitSeek);
+        seek.addEventListener('pointerup', commitSeek);
+        prevBtn.addEventListener('click', (e) => { e.stopPropagation(); _stepNoiseTrack(-1, root); });
+        nextBtn.addEventListener('click', (e) => { e.stopPropagation(); _stepNoiseTrack(1, root); });
+    }
+
+    // 上一首/下一首：始终按"我的音乐"列表里的排列顺序走（不管当前是单曲/列表循环/随机播放）
+    function _stepNoiseTrack(dir, root) {
+        const list = (companionData.noises && companionData.noises[currentMode]) || [];
+        if (!list.length) return;
+        const choice = companionData.lastNoiseChoice && companionData.lastNoiseChoice[currentMode];
+        const currentId = (choice && choice.type === 'custom') ? choice.id : null;
+        let idx = list.findIndex(item => item.id === currentId);
+        if (idx === -1) idx = 0;
+        const nextIdx = (idx + dir + list.length) % list.length;
+        startNoise('custom', list[nextIdx].id);
+
+        // 切完歌，把当前打开的这张卡片就地刷新（歌名、进度条、列表高亮），不整卡重建、不关闭
+        if (root && root.isConnected) {
+            const trackEl = root.querySelector('.companion-noise-player-track');
+            const nameEl = root.querySelector('.companion-noise-player-name');
+            if (nameEl) {
+                const newName = list[nextIdx].name || '未命名';
+                nameEl.textContent = newName;
+                nameEl.classList.remove('scrolling');
+                nameEl.style.animationDuration = '';
+                requestAnimationFrame(() => {
+                    if (trackEl && nameEl.scrollWidth > trackEl.clientWidth) {
+                        nameEl.classList.add('scrolling');
+                        nameEl.style.animationDuration = Math.max(8, newName.length * 0.6) + 's';
+                    }
+                });
+            }
+            root.querySelectorAll('.companion-noise-list-item').forEach(el => {
+                el.classList.toggle('active', el.dataset.id === list[nextIdx].id);
+            });
+        }
+    }
+
     // 打开白噪音选择卡片
     function openNoiseCard() {
         // 移除残留
@@ -1952,6 +2087,9 @@
             const item = list.find(n => n.id === choice.id);
             if (item) currentSongName = item.name || '未命名';
         }
+        // 迷你播放器只在"真的有一段自定义音乐在播（哪怕暂停中）"时才显示——
+        // 雨天/篝火这些内置氛围音没有"进度"这个概念，拖进度条没意义，所以不给它们加播放器
+        const showPlayer = activeType === 'custom' && !!currentSongName && !!currentNoiseAudio;
 
         const card = document.createElement('div');
         card.id = 'companion-noise-card';
@@ -1976,28 +2114,20 @@
                         <i class="fas fa-volume-mute"></i><span>无声</span>
                     </div>
                 </div>
-                ${currentSongName ? `
-                    <div class="companion-noise-now-playing">
-                        <i class="fas fa-music"></i>
-                        <div class="companion-noise-now-playing-track">
-                            <span class="companion-noise-now-playing-name">${escapeHtml(currentSongName)}</span>
-                        </div>
-                    </div>
-                ` : ''}
+                ${showPlayer ? _noisePlayerHTML(currentSongName) : ''}
                 <button class="companion-noise-card-close">关闭</button>
             </div>
         `;
         document.documentElement.appendChild(card);
 
-        // 检测歌名是否溢出，溢出就启动跑马灯
-        if (currentSongName) {
+        if (showPlayer) {
+            _bindNoisePlayer(card);
+            // 检测歌名是否溢出，溢出就启动跑马灯
             requestAnimationFrame(() => {
-                const trackEl = card.querySelector('.companion-noise-now-playing-track');
-                const nameEl = card.querySelector('.companion-noise-now-playing-name');
+                const trackEl = card.querySelector('.companion-noise-player-track');
+                const nameEl = card.querySelector('.companion-noise-player-name');
                 if (trackEl && nameEl && nameEl.scrollWidth > trackEl.clientWidth) {
-                    // 溢出 → 启动滚动
                     nameEl.classList.add('scrolling');
-                    // 设置动画时长（按字数长度，让滚动速度恒定）
                     const duration = Math.max(8, currentSongName.length * 0.6);
                     nameEl.style.animationDuration = `${duration}s`;
                 }
@@ -2049,6 +2179,11 @@
         };
         const modeInfo = modeIcons[playMode] || modeIcons.single;
 
+        // 当前是否真的有一首自定义音乐在播（哪怕暂停中）——用来决定顶部要不要放迷你播放器
+        const activeItem = activeId ? list.find(n => n.id === activeId) : null;
+        const showPlayer = !!activeItem && !!currentNoiseAudio;
+        const playerHtml = showPlayer ? _noisePlayerHTML(activeItem.name || '未命名') : '';
+
         let bodyHtml;
         if (list.length === 0) {
             bodyHtml = `
@@ -2071,7 +2206,20 @@
                     </button>
                 </div>
             `;
-            const itemsHtml = list.map(item => `
+            const itemsHtml = list.map(item => {
+                if (item._uploading) {
+                    return `
+                    <div class="companion-noise-list-item companion-noise-list-item-uploading" data-id="${item.id}">
+                        <div class="companion-noise-list-item-main" style="pointer-events:none;">
+                            <i class="fas fa-music"></i>
+                            <span class="companion-noise-list-item-name">${escapeHtml(item.name || '未命名')}</span>
+                        </div>
+                        <div class="companion-noise-upload-progress-inline">
+                            <div class="companion-noise-upload-progress-bar" style="width:${item._progress || 0}%"></div>
+                        </div>
+                    </div>`;
+                }
+                return `
                 <div class="companion-noise-list-item ${activeId === item.id ? 'active' : ''}" data-id="${item.id}">
                     <div class="companion-noise-list-item-main" data-action="play" data-id="${item.id}">
                         <i class="fas fa-music"></i>
@@ -2080,8 +2228,8 @@
                     <button class="companion-noise-list-item-edit" data-action="rename" data-id="${item.id}" title="重命名">
                         <i class="fas fa-pencil"></i>
                     </button>
-                </div>
-            `).join('');
+                </div>`;
+            }).join('');
             const addMoreHtml = `
                 <button class="companion-noise-list-card-add-more">
                     <i class="fas fa-plus"></i> 添加更多
@@ -2098,11 +2246,25 @@
                     <i class="fas fa-music"></i>
                     <span>我的音乐</span>
                 </div>
+                ${playerHtml}
                 ${bodyHtml}
                 <button class="companion-noise-card-close">返回</button>
             </div>
         `;
         document.documentElement.appendChild(card);
+
+        if (showPlayer) {
+            _bindNoisePlayer(card);
+            requestAnimationFrame(() => {
+                const trackEl = card.querySelector('.companion-noise-player-track');
+                const nameEl = card.querySelector('.companion-noise-player-name');
+                if (trackEl && nameEl && nameEl.scrollWidth > trackEl.clientWidth) {
+                    nameEl.classList.add('scrolling');
+                    const duration = Math.max(8, (activeItem.name || '').length * 0.6);
+                    nameEl.style.animationDuration = `${duration}s`;
+                }
+            });
+        }
 
         // 隐藏的 file input（用于卡片内直接上传）
         let hiddenInput = document.getElementById('companion-noise-card-upload');
@@ -2120,42 +2282,73 @@
             const files = Array.from(e.target.files);
             if (files.length === 0) return;
             let addedCount = 0;
-            let firstAddedId = null;
+            let skippedCount = 0;
             await ensureDataLoaded();
+            if (!companionData.noises[currentMode]) companionData.noises[currentMode] = [];
+
             for (const file of files) {
                 const isAudio = file.type.startsWith('audio/') ||
                     /\.(mp3|m4a|aac|wav|ogg|flac|amr|opus)$/i.test(file.name);
-                if (!isAudio) continue;
+                if (!isAudio) { skippedCount++; continue; }
+
+                // 先插入占位条目（带上传中状态），立刻刷新卡片让用户看到进度条
+                const id = generateId();
+                const placeholder = {
+                    id,
+                    data: null,
+                    cloudKey: null,
+                    name: file.name.replace(/\.[^/.]+$/, ''),
+                    addedAt: Date.now(),
+                    _uploading: true,
+                    _progress: 0
+                };
+                companionData.noises[currentMode].push(placeholder);
+                openNoiseListCard();
+
                 try {
-                    const base64 = await readFileAsBase64(file);
-                    const id = generateId();
-                    if (!firstAddedId) firstAddedId = id;
-                    let mediaData = base64;
+                    let mediaData = null;
                     let cloudKey = null;
-                    try {
-                        const r = await _uploadCompanionMedia(base64, 'companion-noises');
-                        mediaData = r.data;
-                        cloudKey = r.cloudKey;
-                    } catch (e) {
-                        console.warn('[companion] 白噪音云端上传失败，降级本地', e);
+                    const cloudReady = !!(window.CloudMedia && window.CloudSync && window.CloudSync.isConnected());
+                    if (cloudReady) {
+                        // 跟设置里的上传逻辑保持一致：直接传 File 对象，不用先转 base64 再转回去
+                        let fakeProgress = 0;
+                        const fakeTimer = setInterval(() => {
+                            fakeProgress = Math.min(fakeProgress + Math.random() * 12, 85);
+                            placeholder._progress = Math.round(fakeProgress);
+                            const bar = document.querySelector(
+                                `.companion-noise-list-item[data-id="${id}"] .companion-noise-upload-progress-bar`
+                            );
+                            if (bar) bar.style.width = placeholder._progress + '%';
+                        }, 800);
+                        try {
+                            const r = await _uploadCompanionMedia(file, 'companion-noises');
+                            mediaData = r.data;
+                            cloudKey = r.cloudKey;
+                        } finally {
+                            clearInterval(fakeTimer);
+                        }
+                    } else {
+                        mediaData = await readFileAsBase64(file);
                     }
-                    companionData.noises[currentMode].push({
-                        id,
-                        data: mediaData,
-                        cloudKey,
-                        name: file.name.replace(/\.[^/.]+$/, ''),
-                        addedAt: Date.now()
-                    });
+                    placeholder.data = mediaData;
+                    placeholder.cloudKey = cloudKey;
+                    placeholder._uploading = false;
+                    delete placeholder._progress;
                     addedCount++;
                 } catch (err) {
-                    console.error('[companion] 白噪音读取失败', err);
+                    console.error('[companion] 白噪音上传失败', err);
+                    const idx = companionData.noises[currentMode].indexOf(placeholder);
+                    if (idx !== -1) companionData.noises[currentMode].splice(idx, 1);
+                    skippedCount++;
                 }
+                openNoiseListCard();
             }
+
             if (addedCount > 0) {
                 await saveCompanionData();
-                notify(`已添加 ${addedCount} 段音乐`, 'success');
-                // 刷新卡片显示
-                openNoiseListCard();
+                notify(`已添加 ${addedCount} 段音乐${skippedCount ? `（${skippedCount} 个跳过）` : ''}`, 'success');
+            } else if (skippedCount > 0) {
+                notify('请选择音频文件（mp3/m4a/wav 等），或上传失败请检查网络', 'warning');
             }
             e.target.value = '';
         };
@@ -3481,7 +3674,23 @@
                 点击下方按钮上传音频文件
             </div>`;
         } else {
-            html += items.map(v => `
+            html += items.map(v => {
+                const isUploading = v._uploading === true;
+                const isPlaying = _previewPlayingId === v.id;
+                if (isUploading) {
+                    return `
+                <div class="companion-voice-card" data-id="${v.id}">
+                    <i class="fas fa-music"></i>
+                    <div class="companion-voice-upload-wrap">
+                        <span class="companion-voice-upload-name">${escapeHtml(v.name || '')}</span>
+                        <div class="companion-voice-upload-progress">
+                            <div class="companion-voice-upload-bar" style="width:${v._progress || 0}%"></div>
+                        </div>
+                    </div>
+                    <span class="companion-voice-upload-tag">上传中…</span>
+                </div>`;
+                }
+                return `
                 <div class="companion-voice-card" data-id="${v.id}">
                     <i class="fas fa-music"></i>
                     <input type="text" class="companion-voice-card-name"
@@ -3490,14 +3699,14 @@
                         placeholder="语音名称">
                     <div class="companion-voice-card-actions">
                         <button class="companion-mgr-iconbtn" data-action="play-voice" data-id="${v.id}" title="试听">
-                            <i class="fas fa-play"></i>
+                            <i class="fas ${isPlaying ? 'fa-pause' : 'fa-play'}"></i>
                         </button>
                         <button class="companion-mgr-iconbtn danger" data-action="delete-voice" data-id="${v.id}" title="删除">
                             <i class="fas fa-trash-can"></i>
                         </button>
                     </div>
-                </div>
-            `).join('');
+                </div>`;
+            }).join('');
         }
         html += `<button class="companion-mgr-add" id="companion-voice-add-btn">
             <i class="fas fa-plus"></i> 添加${escapeHtml(MODES[mode].label.slice(2))}语音
@@ -3519,7 +3728,23 @@
                 点击下方按钮上传音频文件
             </div>`;
         } else {
-            html += items.map(v => `
+            html += items.map(v => {
+                const isUploading = v._uploading === true;
+                const isPlaying = _previewPlayingId === v.id;
+                if (isUploading) {
+                    return `
+                <div class="companion-voice-card" data-id="${v.id}">
+                    <i class="fas fa-music"></i>
+                    <div class="companion-voice-upload-wrap">
+                        <span class="companion-voice-upload-name">${escapeHtml(v.name || '')}</span>
+                        <div class="companion-voice-upload-progress">
+                            <div class="companion-voice-upload-bar" style="width:${v._progress || 0}%"></div>
+                        </div>
+                    </div>
+                    <span class="companion-voice-upload-tag">上传中…</span>
+                </div>`;
+                }
+                return `
                 <div class="companion-voice-card" data-id="${v.id}">
                     <i class="fas fa-music"></i>
                     <input type="text" class="companion-voice-card-name"
@@ -3528,14 +3753,14 @@
                         placeholder="音乐名称">
                     <div class="companion-voice-card-actions">
                         <button class="companion-mgr-iconbtn" data-action="play-noise" data-id="${v.id}" title="试听">
-                            <i class="fas fa-play"></i>
+                            <i class="fas ${isPlaying ? 'fa-pause' : 'fa-play'}"></i>
                         </button>
                         <button class="companion-mgr-iconbtn danger" data-action="delete-noise" data-id="${v.id}" title="删除">
                             <i class="fas fa-trash-can"></i>
                         </button>
                     </div>
-                </div>
-            `).join('');
+                </div>`;
+            }).join('');
         }
         html += `<button class="companion-mgr-add" id="companion-noise-add-btn">
             <i class="fas fa-plus"></i> 添加${escapeHtml(MODES[mode].label.slice(2))}音乐
@@ -3674,11 +3899,22 @@
         e.target.value = '';
     }
 
+    // 只操作单个语音/音乐卡片的上传进度条，不重建整个列表（跟背景那边的 _updateCardProgress 是同一个思路）
+    function _updateVoiceCardProgress(listElId, id, pct) {
+        const list = document.getElementById(listElId);
+        if (!list) return;
+        const card = list.querySelector(`.companion-voice-card[data-id="${id}"]`);
+        if (!card) return;
+        const bar = card.querySelector('.companion-voice-upload-bar');
+        if (bar) bar.style.width = pct + '%';
+    }
+
     // ── 上传：语音 ──
     async function handleMgrVoiceUpload(e) {
         const files = Array.from(e.target.files);
         if (!files.length) return;
         await ensureDataLoaded();
+        const mode = _mgrState.voice;
 
         let addedCount = 0;
         let skippedCount = 0;
@@ -3686,35 +3922,60 @@
             const isAudio = file.type.startsWith('audio/') ||
                 /\.(mp3|m4a|aac|wav|ogg|flac|amr|opus)$/i.test(file.name);
             if (!isAudio) { skippedCount++; continue; }
+
+            // 先插入占位条目（带上传中状态），立刻渲染出来，用户能看到进度条
+            const id = generateId();
+            const placeholder = {
+                id,
+                data: null,
+                cloudKey: null,
+                name: file.name.replace(/\.[^/.]+$/, ''),
+                addedAt: Date.now(),
+                _uploading: true,
+                _progress: 0
+            };
+            if (!companionData.voices[mode]) companionData.voices[mode] = [];
+            companionData.voices[mode].push(placeholder);
+            renderCompanionVoiceManager();
+
             try {
                 let mediaData = null;
                 let cloudKey = null;
                 const cloudReady = !!(window.CloudMedia && window.CloudSync && window.CloudSync.isConnected());
                 if (cloudReady) {
-                    const r = await _uploadCompanionMedia(file, 'companion-voices');
-                    mediaData = r.data;
-                    cloudKey = r.cloudKey;
+                    // 跟背景上传一样：fetch PUT 拿不到真实上传进度，用一个假进度条撑到85%，上传完直接跳100%
+                    let fakeProgress = 0;
+                    const fakeTimer = setInterval(() => {
+                        fakeProgress = Math.min(fakeProgress + Math.random() * 12, 85);
+                        placeholder._progress = Math.round(fakeProgress);
+                        _updateVoiceCardProgress('companion-voice-list', id, placeholder._progress);
+                    }, 800);
+                    try {
+                        const r = await _uploadCompanionMedia(file, 'companion-voices');
+                        mediaData = r.data;
+                        cloudKey = r.cloudKey;
+                    } finally {
+                        clearInterval(fakeTimer);
+                    }
                 } else {
                     // 没连云端降级为 base64（兼容老逻辑）
-                    const base64 = await readFileAsBase64(file);
-                    mediaData = base64;
+                    mediaData = await readFileAsBase64(file);
                 }
-                companionData.voices[_mgrState.voice].push({
-                    id: generateId(),
-                    data: mediaData,
-                    cloudKey,
-                    name: file.name.replace(/\.[^/.]+$/, ''),
-                    addedAt: Date.now()
-                });
+                placeholder.data = mediaData;
+                placeholder.cloudKey = cloudKey;
+                placeholder._uploading = false;
+                delete placeholder._progress;
                 addedCount++;
             } catch (err) {
                 console.error('[companion] 语音读取失败', err);
+                const idx = companionData.voices[mode].indexOf(placeholder);
+                if (idx !== -1) companionData.voices[mode].splice(idx, 1);
                 skippedCount++;
             }
+            renderCompanionVoiceManager();
         }
         if (addedCount > 0) {
             await saveCompanionData();
-            renderCompanionVoiceManager();
             notify(`已添加 ${addedCount} 段语音${skippedCount ? `（${skippedCount} 个跳过）` : ''}`, 'success');
         } else if (skippedCount > 0) {
             notify('请选择音频文件（mp3/m4a/wav 等）', 'warning');
@@ -3744,6 +4005,11 @@
             if (!confirm('确定删除这段语音吗？')) return;
             const item = companionData.voices[mode].find(x => x.id === id);
             companionData.voices[mode] = companionData.voices[mode].filter(x => x.id !== id);
+            if (_previewPlayingId === id) {
+                if (_previewAudio) { try { _previewAudio.pause(); } catch (_) {} }
+                _previewAudio = null;
+                _previewPlayingId = null;
+            }
             saveCompanionData();
             renderCompanionVoiceManager();
             notify('已删除', 'success');
@@ -3752,12 +4018,17 @@
             }
         } else if (action === 'play-voice') {
             const v = companionData.voices[mode].find(x => x.id === id);
-            if (v) playVoice(v);
+            if (v) toggleMgrPreview(v, renderCompanionVoiceManager);
         } else if (action === 'delete-noise') {
             if (!confirm('确定删除这段音乐吗？')) return;
             const item = companionData.noises[mode].find(x => x.id === id);
             companionData.noises[mode] = companionData.noises[mode].filter(x => x.id !== id);
-            // 如果当前播放的就是这个，停掉
+            if (_previewPlayingId === id) {
+                if (_previewAudio) { try { _previewAudio.pause(); } catch (_) {} }
+                _previewAudio = null;
+                _previewPlayingId = null;
+            }
+            // 如果当前播放（正式播放，不是试听）的就是这个，停掉
             const choice = companionData.lastNoiseChoice && companionData.lastNoiseChoice[mode];
             if (choice && choice.type === 'custom' && choice.id === id) {
                 companionData.lastNoiseChoice[mode] = null;
@@ -3771,8 +4042,64 @@
             }
         } else if (action === 'play-noise') {
             const v = companionData.noises[mode].find(x => x.id === id);
-            if (v) playVoice(v);
+            if (v) toggleMgrPreview(v, renderCompanionNoiseManager);
         }
+    }
+
+    // 外观设置里"试听"按钮的播放/暂停切换（跟正式的陪伴语音/白噪音播放完全独立，见 _previewAudio 声明处的说明）
+    async function toggleMgrPreview(item, rerender) {
+        // 再点一次同一条 → 暂停
+        if (_previewPlayingId === item.id && _previewAudio && !_previewAudio.paused) {
+            _previewAudio.pause();
+            _previewPlayingId = null;
+            rerender();
+            return;
+        }
+        // 切到别的条目 / 重新播放 → 先停掉上一个
+        if (_previewAudio) {
+            try { _previewAudio.pause(); } catch (_) {}
+            _previewAudio = null;
+        }
+        _previewPlayingId = item.id;
+        rerender(); // 先切到"暂停"图标，给用户即时反馈，不用等音频真正加载完
+
+        let src = item.data;
+        if (typeof src === 'string' && src.indexOf('oss://') === 0) {
+            try {
+                src = await _resolveMediaUrl(src);
+            } catch (e) {
+                console.warn('[companion] 试听加载失败', e);
+                notify('试听加载失败', 'warning');
+                if (_previewPlayingId === item.id) _previewPlayingId = null;
+                rerender();
+                return;
+            }
+        }
+        // 加载期间用户可能已经点了别的条目或再点了一次暂停，这里要重新确认一下还是不是当前这条
+        if (_previewPlayingId !== item.id) return;
+
+        const audio = new Audio(src);
+        _previewAudio = audio;
+        audio.addEventListener('ended', () => {
+            if (_previewAudio !== audio) return;
+            _previewPlayingId = null;
+            _previewAudio = null;
+            rerender();
+        });
+        audio.addEventListener('error', () => {
+            if (_previewAudio !== audio) return;
+            _previewPlayingId = null;
+            _previewAudio = null;
+            rerender();
+        });
+        audio.play().catch(err => {
+            console.warn('[companion] 试听播放失败', err);
+            if (_previewAudio === audio) {
+                _previewPlayingId = null;
+                _previewAudio = null;
+                rerender();
+            }
+        });
     }
 
     function handleMgrVoiceRename(id, newName) {
@@ -3799,38 +4126,62 @@
         let addedCount = 0;
         let skippedCount = 0;
         await ensureDataLoaded();
+        const mode = _mgrState.noise;
         for (const file of files) {
             const isAudio = file.type.startsWith('audio/') ||
                 /\.(mp3|m4a|aac|wav|ogg|flac|amr|opus)$/i.test(file.name);
             if (!isAudio) { skippedCount++; continue; }
+
+            const id = generateId();
+            const placeholder = {
+                id,
+                data: null,
+                cloudKey: null,
+                name: file.name.replace(/\.[^/.]+$/, ''),
+                addedAt: Date.now(),
+                _uploading: true,
+                _progress: 0
+            };
+            if (!companionData.noises[mode]) companionData.noises[mode] = [];
+            companionData.noises[mode].push(placeholder);
+            renderCompanionNoiseManager();
+
             try {
                 let mediaData = null;
                 let cloudKey = null;
                 const cloudReady = !!(window.CloudMedia && window.CloudSync && window.CloudSync.isConnected());
                 if (cloudReady) {
-                    const r = await _uploadCompanionMedia(file, 'companion-noises');
-                    mediaData = r.data;
-                    cloudKey = r.cloudKey;
+                    let fakeProgress = 0;
+                    const fakeTimer = setInterval(() => {
+                        fakeProgress = Math.min(fakeProgress + Math.random() * 12, 85);
+                        placeholder._progress = Math.round(fakeProgress);
+                        _updateVoiceCardProgress('companion-noise-list', id, placeholder._progress);
+                    }, 800);
+                    try {
+                        const r = await _uploadCompanionMedia(file, 'companion-noises');
+                        mediaData = r.data;
+                        cloudKey = r.cloudKey;
+                    } finally {
+                        clearInterval(fakeTimer);
+                    }
                 } else {
-                    const base64 = await readFileAsBase64(file);
-                    mediaData = base64;
+                    mediaData = await readFileAsBase64(file);
                 }
-                companionData.noises[_mgrState.noise].push({
-                    id: generateId(),
-                    data: mediaData,
-                    cloudKey,
-                    name: file.name.replace(/\.[^/.]+$/, ''),
-                    addedAt: Date.now()
-                });
+                placeholder.data = mediaData;
+                placeholder.cloudKey = cloudKey;
+                placeholder._uploading = false;
+                delete placeholder._progress;
                 addedCount++;
             } catch (err) {
                 console.error('[companion] 白噪音读取失败', err);
+                const idx = companionData.noises[mode].indexOf(placeholder);
+                if (idx !== -1) companionData.noises[mode].splice(idx, 1);
                 skippedCount++;
             }
+            renderCompanionNoiseManager();
         }
         if (addedCount > 0) {
             await saveCompanionData();
-            renderCompanionNoiseManager();
             notify(`已添加 ${addedCount} 段音乐${skippedCount ? `（${skippedCount} 个跳过）` : ''}`, 'success');
         } else if (skippedCount > 0) {
             notify('请选择音频文件（mp3/m4a/wav 等）', 'warning');
