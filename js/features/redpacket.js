@@ -470,7 +470,7 @@
     function _rpEnsureSchedulerShape() {
         if (!_data.scheduler || typeof _data.scheduler !== 'object' || 'missedCount' in _data.scheduler) {
             // 兼容旧结构（8~12小时调度器时代留下的 {nextCheckAt, missedCount}）：直接换成新结构，
-            // 不试图从旧字段里"翻译"出连续天数，安全起见当成"从没发过"处理（走"全新账号"的40%概率）
+            // 不试图从旧字段里"翻译"出连续天数，安全起见当成"从没发过"处理（走"全新账号"的10%概率）
             _data.scheduler = { lastSentDate: null, dailyDate: null, dailyCount: 0, specialUsedDate: null, periodBonusUsedDate: null, celebratedAnn: [] };
         }
         if (!('periodBonusUsedDate' in _data.scheduler)) _data.scheduler.periodBonusUsedDate = null; // 老数据补个字段，不然是 undefined，跟 today 字符串比较也不会误判，但补上更干净
@@ -487,13 +487,13 @@
         return _rpDaysBetweenDateStr(_data.scheduler.lastSentDate, _rpTodayStr());
     }
 
-    // 全新账号（lastSentDate 从没发过）不走"连续多少天没发"这套阶梯，单独给固定 40%——
-    // 只有命中过一次(不管是靠这40%、靠节日/纪念日、还是靠经期关怀)才会脱离这个状态，
+    // 全新账号（lastSentDate 从没发过）不走"连续多少天没发"这套阶梯，单独给固定 10%——
+    // 只有命中过一次(不管是靠这10%、靠节日/纪念日、还是靠经期关怀)才会脱离这个状态，
     // 因为 lastSentDate 只要有值了，_rpDaysSinceLastSent() 就不会再返回 Infinity，
     // 自然就会掉进下面的正常阶梯，不用额外记一个"是否脱离过"的标记
     function _rpFallbackProb() {
         var days = _rpDaysSinceLastSent();
-        if (days === Infinity) return 0.4;
+        if (days === Infinity) return 0.1;
         if (days < 3) return 0.03;
         if (days <= 5) return 0.2;
         if (days <= 9) return 0.4;
@@ -648,7 +648,7 @@
 
     // 5. 批量空跑验证概率分布对不对——不真的发红包，只是照着 evaluatePartnerTrigger
     //    同一套概率公式在内存里模拟 N 天，统计每个档位（含"全新账号"那档）实际命中率
-    //    跟设计的 40%(全新)/3%/20%/40%/90% 差多少（不含节日/纪念日的80%那条路径，那条是日历决定的，没法随机模拟）
+    //    跟设计的 10%(全新)/3%/20%/40%/90% 差多少（不含节日/纪念日的80%那条路径，那条是日历决定的，没法随机模拟）
     function debugSimulateFallback(rounds) {
         rounds = rounds || 2000;
         var daysSince = Infinity; // 模拟从"全新账号，从没发过"开始
@@ -658,15 +658,15 @@
         };
         for (var i = 0; i < rounds; i++) {
             var key = daysSince === Infinity ? 't0' : (daysSince < 3 ? 't1' : (daysSince <= 5 ? 't2' : (daysSince <= 9 ? 't3' : 't4')));
-            var prob = daysSince === Infinity ? 0.4 : (daysSince < 3 ? 0.03 : (daysSince <= 5 ? 0.2 : (daysSince <= 9 ? 0.4 : 0.9)));
+            var prob = daysSince === Infinity ? 0.1 : (daysSince < 3 ? 0.03 : (daysSince <= 5 ? 0.2 : (daysSince <= 9 ? 0.4 : 0.9)));
             stats[key].total++;
             if (Math.random() < prob) { stats[key].hit++; daysSince = 0; }
-            else if (daysSince !== Infinity) { daysSince++; } // 全新账号没中的话，下一轮还是全新账号(40%)，不递增天数
+            else if (daysSince !== Infinity) { daysSince++; } // 全新账号没中的话，下一轮还是全新账号(10%)，不递增天数
         }
         function fmt(s) { return s.total ? (s.hit / s.total * 100).toFixed(1) + '%' : '（这一档没跑到）'; }
         console.log(
             '[红包兜底概率模拟] 共跑 ' + rounds + ' 轮判定\n' +
-            '全新账号/从没发过 (理论40%)：跑到 ' + stats.t0.total + ' 次，命中 ' + stats.t0.hit + ' 次，实际 ' + fmt(stats.t0) + '\n' +
+            '全新账号/从没发过 (理论10%)：跑到 ' + stats.t0.total + ' 次，命中 ' + stats.t0.hit + ' 次，实际 ' + fmt(stats.t0) + '\n' +
             '<3天 (理论3%)：跑到 ' + stats.t1.total + ' 次，命中 ' + stats.t1.hit + ' 次，实际 ' + fmt(stats.t1) + '\n' +
             '3~5天 (理论20%)：跑到 ' + stats.t2.total + ' 次，命中 ' + stats.t2.hit + ' 次，实际 ' + fmt(stats.t2) + '\n' +
             '6~9天 (理论40%)：跑到 ' + stats.t3.total + ' 次，命中 ' + stats.t3.hit + ' 次，实际 ' + fmt(stats.t3) + '\n' +
