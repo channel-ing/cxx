@@ -12,7 +12,9 @@
 (function () {
     // 图标里 emoji 优先于 iconClass（emoji 更容易一眼分辨，比如红包用 🧧 而不是信封，
     // 避免跟信箱功能的信封图标混淆）；iconClass 支持传完整的 class 字符串（包括 fab 品牌图标）
-    // 顺序：图片/视频通话/红包/批量发送——Yuying 定的顺序。
+    // 顺序：图片/让ta主动/红包/批量发送/位置/快问快答。
+    // "视频通话"和"让梦角主动说话"对调了位置：视频通话挪回输入区主行显示，
+    // "让梦角主动说话"(原 continue-btn)挪进这个面板，显示名叫"让ta主动"。
     // 原来的"位置/小红书/抖音/快问快答"那一整行先隐藏了，这些功能都还没做，
     // 留着一排点了只会弹"开发中"的占位格子没有意义。做好了哪个再挪回来加进这个数组就行，
     // 不用改这个文件其它任何逻辑——面板本身是按这个数组自动渲染的，加/删条目会自动跟着调整布局。
@@ -28,14 +30,12 @@
             }
         },
         {
-            id: 'videocall',
-            iconClass: 'fas fa-video',
-            label: '视频通话',
+            id: 'continue',
+            iconClass: 'fas fa-ellipsis-h',
+            label: '让ta主动',
             ready: true,
             action: function () {
-                if (window.callFeature && typeof window.callFeature.startCall === 'function') {
-                    window.callFeature.startCall(false);
-                }
+                if (typeof simulateReply === 'function') simulateReply();
             }
         },
         {
