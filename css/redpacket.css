@@ -27,13 +27,35 @@
 }
 
 /* ── 聊天气泡 ── */
-.message-redpacket-bubble-wrap {
+/* 红包卡片不管用了什么气泡样式/背景皮肤都要保持独立展示，不能被套进气泡装饰里。
+   之前只写了两个类名组合(.message-sent.message-redpacket-bubble-wrap)，权重跟
+   "专属画廊"里那些气泡皮肤CSS（同样是两个类名 + !important）打平——打平的情况下
+   谁后加载谁赢，皮肤CSS是运行时后贴上去的，所以之前那版实际上没真正压住。
+   这次把选择器权重加到三个类名（.message + .message-sent/.message-received +
+   .message-redpacket-bubble-wrap），规则权重本身就比皮肤CSS的两个类名高，
+   不用管谁先谁后加载都能压过去。同时把皮肤CSS里会用到的每个属性都对应设了
+   !important的复位值，包括它专门加的 ::before/::after 伪元素装饰（叶子/茎那些），
+   这些也要单独清掉，不然复位了背景色，叶子装饰还会残留在红包卡片周围 */
+.message-redpacket-bubble-wrap,
+.message.message-redpacket-bubble-wrap,
+.message.message-sent.message-redpacket-bubble-wrap,
+.message.message-received.message-redpacket-bubble-wrap {
     background: none !important;
+    background-color: transparent !important;
+    background-image: none !important;
     padding: 0 !important;
     box-shadow: none !important;
     border: none !important;
     border-radius: 0 !important; /* 外层.message默认会带主题气泡的圆角(var(--radius))，之前一直在这里被裁圆，跟内层设的圆角无关 */
     overflow: visible !important; /* 外层.message默认overflow:hidden，配合上面的圆角一起裁切内层——这也是之前改了内层圆角却看不出变化的原因 */
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    width: auto !important;
+    min-width: 0 !important;
+}
+.message.message-sent.message-redpacket-bubble-wrap::before,
+.message.message-sent.message-redpacket-bubble-wrap::after {
+    content: none !important; /* 清掉"专属画廊"皮肤加的叶子/茎装饰伪元素，不然背景清了装饰还飘在红包卡片周围 */
 }
 
 .redpacket-bubble {
