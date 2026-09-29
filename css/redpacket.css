@@ -1,0 +1,782 @@
+/* ============================================================
+   红包功能样式 v2
+   独立文件，不动 styles.css 原有内容。
+   这一版的形状/颜色/圆角/图标坐标，全部是从 Yuying 提供的 红包ui.svg
+   里原样量出来/抠出来的，不是估的。
+   ============================================================ */
+
+/* ── 到期提醒悬浮按钮（文档第8节）：跟 #back-to-latest-btn 同款胶囊样式，
+   定位在它正上方，两者各自独立显示/隐藏，互不影响 ── */
+#rp-expiry-reminder-btn {
+    position: absolute;
+    right: 14px;
+    bottom: 128px; /* back-to-latest-btn 是 84px，胶囊自身高度+间距约 44px，叠在它正上方 */
+    z-index: 20;
+    display: none;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 14px;
+    border-radius: 20px;
+    border: none;
+    background: var(--accent-color);
+    color: #fff;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.18);
+    cursor: pointer;
+    font-size: 12px;
+    white-space: nowrap;
+}
+
+/* ── 聊天气泡 ── */
+.message-redpacket-bubble-wrap {
+    background: none !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+    border: none !important;
+    border-radius: 0 !important; /* 外层.message默认会带主题气泡的圆角(var(--radius))，之前一直在这里被裁圆，跟内层设的圆角无关 */
+    overflow: visible !important; /* 外层.message默认overflow:hidden，配合上面的圆角一起裁切内层——这也是之前改了内层圆角却看不出变化的原因 */
+}
+
+.redpacket-bubble {
+    position: relative;
+    width: 226px;
+    border-radius: 8px; /* 兜底值，实际会被下面按sent/received分别覆盖 */
+    padding: 12px 14px 10px;
+    cursor: pointer;
+    color: #fff;
+    background: #FFA445;
+    transition: transform 0.12s;
+    box-shadow: 0 3px 10px rgba(0,0,0,0.14);
+    overflow: hidden;
+}
+/* 圆角固定死，不跟settings.bubbleStyle走：只有靠近头像那一角保留8px，
+   其余三个角缩小到3px——头像在气泡右侧(sent)时保右下角，在左侧(received)时保左下角 */
+.message-sent .redpacket-bubble { border-radius: 12px 12px 4px 12px; }
+.message-received .redpacket-bubble { border-radius: 12px 12px 12px 4px; }
+.redpacket-bubble:active { transform: scale(0.97); }
+
+/* 已领取/已过期：不是换个实色完事，是在整张气泡（图标+文字都算在内）上面盖一层
+   半透明深色蒙层——这样才是SVG稿里 fill="#5A2E00" fill-opacity="0.46" 叠加的那个效果，
+   底色还是原来的橙色，只是被蒙层压暗了 */
+.rp-bubble-overlay {
+    display: none;
+    position: absolute;
+    inset: 0;
+    background: rgba(90,46,0,0.46);
+    pointer-events: none;
+}
+.rp-bubble-received .rp-bubble-overlay,
+.rp-bubble-returned .rp-bubble-overlay {
+    display: block;
+}
+
+.rp-bubble-top {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.rp-icon-svg {
+    width: 26px;
+    height: 33.6px;
+    flex-shrink: 0;
+    display: block;
+}
+.rp-bubble-text {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 0;
+}
+.rp-bubble-blessing {
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 1.3;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+}
+.rp-bubble-extra {
+    font-size: 11px;
+    opacity: 0.92;
+}
+.rp-bubble-divider {
+    height: 1px;
+    background: rgba(255,255,255,0.3);
+    margin: 10px 0 7px;
+}
+.rp-bubble-bottom {
+    font-size: 11px;
+    opacity: 0.85;
+}
+
+/* ── 发红包表单弹窗（照 SVG 稿里"发红包"那一帧重做，居中弹窗） ── */
+.rp-compose-content {
+    padding: 26px 22px 22px !important;
+    align-items: center;
+    position: relative;
+}
+.rp-compose-header {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-bottom: 20px;
+}
+.rp-compose-header-icon {
+    width: 22px;
+    height: 28.4px;
+    display: inline-flex;
+}
+.rp-compose-header-icon .rp-icon-svg {
+    width: 22px;
+    height: 28.4px;
+}
+.rp-compose-title {
+    font-size: 17px;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.rp-compose-row {
+    flex-shrink: 0;
+    width: 100%;
+    background: var(--primary-bg);
+    border-radius: 10px;
+    margin-bottom: 12px;
+}
+.rp-compose-row-label {
+    font-size: 15px;
+    color: var(--text-secondary);
+    padding: 16px 4px 16px 14px;
+    flex-shrink: 0;
+}
+.rp-compose-row-amount {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+.rp-compose-row-input {
+    border: none;
+    background: none;
+    outline: none;
+    box-shadow: none;
+    -webkit-appearance: none;
+    appearance: none;
+    color: var(--text-primary);
+    font-size: 15px;
+    padding: 16px 14px;
+    width: 100%;
+    box-sizing: border-box;
+    text-align: right;
+}
+.rp-compose-row-input:focus,
+.rp-compose-row-input:focus-visible {
+    outline: none;
+    box-shadow: none;
+}
+.rp-compose-blessing-input {
+    text-align: left;
+}
+.rp-compose-row-blessing-wrap {
+    display: flex;
+    align-items: center;
+}
+.rp-compose-row-blessing-wrap .rp-compose-row-input {
+    flex: 1;
+    min-width: 0;
+}
+.rp-compose-sticker-slot {
+    flex-shrink: 0;
+    width: 32px;
+    height: 32px;
+    margin: 0 12px 0 4px;
+    border: none;
+    border-radius: 8px;
+    background: none;
+    color: var(--text-secondary);
+    font-size: 17px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    padding: 0;
+}
+.rp-compose-sticker-slot img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+/* ── 表情选择器弹窗（复用"我的表情库"内容） ── */
+.rp-sticker-picker-content {
+    padding: 22px 0 0 !important;
+    width: 88% !important;
+    max-width: 380px !important;
+    height: 36vh !important; /* 缩短一半（原来72vh） */
+}
+/* 滚动区不再用 flex:1 让浏览器去"猜"该有多高——跟朋友圈评论表情面板
+   （moments.js _mToggleSticker）踩过的是同一个"flex 高度协商"坑：grid 在这种写法下
+   会被塞进 flex 算出来的高度里重算行高，格子跟着被压扁成长条。改成跟那边一样的方案：
+   grid 保持普通块级元素、只由自身宽度决定格子的正方形；外面套一层滚动容器，
+   高度由 JS 在渲染后量出来、钉一个固定像素值（见 redpacket.js _syncStickerPickerScrollHeight） */
+.rp-sticker-picker-scrollwrap {
+    overflow-y: auto;
+    padding: 6px 22px 22px;
+}
+.rp-sticker-picker-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    align-content: flex-start;
+}
+.rp-sticker-picker-item {
+    position: relative;
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    background: var(--primary-bg);
+    padding: 0;
+    cursor: pointer;
+    overflow: hidden;
+}
+/* aspect-ratio:1 在这个 flex 容器里的 grid 子项上会算错高度，格子挤压变形，
+   缩略图跟着超出自己的格子、跟上下行叠在一起——跟"移动分组"多选网格
+   （my-sticker-groups.css）踩过的是同一个坑，改成同样的百分比 padding 撑高度写法 */
+.rp-sticker-picker-item::before {
+    content: '';
+    display: block;
+    padding-top: 100%;
+}
+.rp-sticker-picker-item img {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+.rp-sticker-picker-empty {
+    grid-column: 1 / -1;
+    text-align: center;
+    font-size: 13px;
+    color: var(--text-secondary);
+    opacity: 0.7;
+    padding: 30px 10px;
+    line-height: 1.6;
+}
+
+.rp-compose-preview {
+    flex-shrink: 0;
+    width: 100%;
+    text-align: center;
+    margin: 18px 0 22px;
+    color: var(--text-primary);
+    font-weight: 800;
+}
+.rp-compose-preview-sign {
+    font-size: 20px;
+    margin-right: 4px;
+    opacity: 0.75;
+}
+#rp-compose-preview-amount {
+    font-size: 34px;
+    letter-spacing: 0.5px;
+}
+
+.rp-compose-send-btn {
+    flex-shrink: 0;
+    width: 100%;
+}
+.rp-btn-primary {
+    background: linear-gradient(135deg, #FF7A52, #E0562E);
+    color: #fff;
+    border: none;
+    border-radius: 24px;
+    padding: 13px 0;
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+}
+.rp-btn-primary:disabled { opacity: 0.6; }
+
+.rp-compose-footnote {
+    flex-shrink: 0;
+    width: 100%;
+    text-align: center;
+    font-size: 11.5px;
+    color: var(--text-secondary);
+    opacity: 0.7;
+    margin-top: 14px;
+}
+
+.rp-compose-cancel {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    border: none;
+    background: var(--primary-bg);
+    color: var(--text-secondary);
+    font-size: 12px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* ── 拆红包卡片弹窗：容器用 aspect-ratio 锁死设计稿比例，
+   背景弧线是内嵌的真实SVG（不是CSS画的曲线），文字用百分比定位对齐抠出来的坐标 ── */
+.rp-view-content {
+    padding: 0 !important;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    width: 82% !important;
+    max-width: 300px !important;
+    overflow: visible !important;
+}
+.rp-card {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 3065 / 4820;
+    color: #fff;
+    perspective: 800px; /* 给開按钮的金元宝旋转动效一个3D透视空间 */
+    /* 注意：这里不能 overflow:hidden——关闭按钮按设计稿坐标是画在卡片底边以外的，
+       裁切会把它切掉。圆角改由 .rp-card-bg 自己承担 */
+}
+.rp-card-bg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+    border-radius: 3px; /* 未拆开红卡原稿是直角(rx=0)，给个极小值避免弹窗里显得太生硬 */
+    box-shadow: 0 18px 40px rgba(0,0,0,0.3);
+}
+.rp-card-opened .rp-card-bg,
+.rp-card-returned .rp-card-bg {
+    border-radius: 6px; /* 60/3065 按设计稿比例换算出来的，之前10px明显偏大 */
+}
+
+.rp-card-close {
+    position: absolute;
+    top: 108.1%; left: 50%;
+    transform: translateX(-50%);
+    width: 11%; aspect-ratio: 1;
+    border: none;
+    background: none;
+    cursor: pointer;
+    padding: 0;
+    z-index: 5;
+}
+.rp-card-close-svg { width: 100%; height: 100%; display: block; }
+
+/* 头像+称谓一行：用flex保证两者垂直居中对齐，不再各自用百分比定位（那样跟卡片宽高比不一致会对不齐）；
+   justify-content:center 让整组在卡片里水平居中，不是贴左 */
+.rp-card-header-row {
+    position: absolute;
+    left: 8%; right: 8%;
+    display: flex; align-items: center; justify-content: center; gap: 10px;
+    z-index: 2;
+}
+.rp-card-sealed .rp-card-header-row { top: 21%; }
+.rp-card-opened .rp-card-header-row,
+.rp-card-returned .rp-card-header-row { top: 42%; }
+
+.rp-card-avatar {
+    width: 30px; height: 30px;
+    flex-shrink: 0;
+    border-radius: 22%;
+    overflow: hidden;
+    background: #eee;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; color: #aaa;
+}
+.rp-card-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+.rp-card-sender {
+    font-size: 13px; font-weight: 600; color: #F6E3B4;
+}
+.rp-card-sender-dark {
+    font-size: 13px; font-weight: 600; color: var(--text-primary);
+}
+
+/* 白卡/灰卡的"白色"部分现在跟着系统主题走：SVG里那个fill="white"已经改成了currentColor，
+   这里用color统一控制成实际的--secondary-bg，暗色模式下就是深色底，不再永远是白色 */
+.rp-card-opened .rp-card-bg,
+.rp-card-returned .rp-card-bg {
+    color: var(--secondary-bg);
+}
+
+.rp-card-blessing {
+    position: absolute;
+    top: 36%; left: 8%; right: 8%;
+    text-align: center;
+    font-size: 21px; font-weight: 700; line-height: 1.4; color: #F6E3B4;
+    z-index: 2;
+}
+.rp-card-open-circle {
+    position: absolute;
+    top: 62%; left: 50%;
+    width: 35%; aspect-ratio: 1;
+    transform: translateX(-50%);
+    border-radius: 50%;
+    background: #EBCD9A;
+    display: flex; align-items: center; justify-content: center;
+    z-index: 2;
+}
+.rp-card-open-circle-clickable {
+    cursor: pointer;
+    transition: transform 0.12s;
+}
+.rp-card-open-circle-clickable:active {
+    transform: translateX(-50%) scale(0.94);
+}
+.rp-card-open-circle span {
+    font-size: 22px;
+    font-weight: 800;
+    color: #3a2a10;
+    letter-spacing: 2px;
+}
+
+/* 留言库的"编辑"/"批量添加"小弹窗、表情包删除确认弹窗：默认 .modal-buttons 没有底部间距，
+   按钮会直接贴着卡片下边缘，这里统一补上 */
+#rp-bank-prompt-modal .modal-buttons,
+#rp-bank-batchadd-modal .modal-buttons,
+#rp-sticker-delete-modal .modal-buttons {
+    margin-bottom: 20px;
+}
+#rp-sticker-delete-modal .modal-title {
+    font-size: 14px;
+    font-weight: 600;
+}
+.rp-card-waiting {
+    position: absolute;
+    top: 93%; left: 0; right: 0;
+    text-align: center;
+    font-size: 12px; color: #F6E3B4; opacity: 0.85;
+    z-index: 2;
+}
+
+/* 拆开白卡 / 已退回灰卡：blessing(53%起) / amount(61%起) / link(90%)，两者共用同一套布局 */
+.rp-card-opened .rp-card-blessing-grey,
+.rp-card-returned .rp-card-blessing-grey {
+    position: absolute;
+    top: 53%; left: 8%; right: 8%;
+    text-align: center;
+    font-size: 12px; color: var(--text-secondary); line-height: 1.4;
+    z-index: 2;
+}
+.rp-card-opened .rp-card-amount,
+.rp-card-returned .rp-card-amount {
+    position: absolute;
+    top: 61%; left: 8%; right: 8%;
+    text-align: center;
+    font-size: 28px; font-weight: 800; color: #D9A441;
+    z-index: 2;
+}
+.rp-card-amount-unit { font-size: 60%; font-weight: 700; }
+.rp-card-amount-muted { color: #b8b8b8 !important; }
+.rp-card-opened .rp-card-link,
+.rp-card-returned .rp-card-link {
+    position: absolute;
+    top: 90%; left: 0; right: 0;
+    text-align: center;
+    font-size: 11px; color: var(--text-secondary);
+    z-index: 2;
+}
+
+/* ── 卡片底部"查看历史红包记录"可点击链接（已领取/已退回卡片共用） ── */
+.rp-card-link-clickable {
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+}
+.rp-card-link-clickable i { font-size: 9px; }
+
+/* ── 历史红包记录页（居中弹窗） ── */
+.rp-history-content {
+    padding: 22px 0 0 !important;
+    width: 88% !important;
+    max-width: 380px !important;
+    max-height: 82vh !important;
+}
+.rp-history-header {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    padding: 0 22px 16px;
+}
+.rp-history-title {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+.rp-history-close {
+    position: absolute;
+    right: 18px;
+    top: -2px;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    border: none;
+    background: var(--primary-bg);
+    color: var(--text-secondary);
+    font-size: 11px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.rp-history-tabs {
+    flex-shrink: 0;
+    display: flex;
+    gap: 8px;
+    padding: 0 22px 14px;
+}
+.rp-history-tab {
+    flex: 1;
+    padding: 9px 0;
+    border-radius: 10px;
+    border: none;
+    background: var(--primary-bg);
+    color: var(--text-secondary);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+}
+.rp-history-tab.active {
+    background: var(--accent-color);
+    color: #fff;
+}
+
+.rp-history-avatar {
+    flex-shrink: 0;
+    width: 60px;
+    height: 60px;
+    border-radius: 10px;
+    overflow: hidden;
+    margin: 0 auto 12px;
+    background: var(--primary-bg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    color: var(--text-secondary);
+}
+.rp-history-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+.rp-history-stats {
+    flex-shrink: 0;
+    padding: 4px 22px 16px;
+    text-align: center;
+    border-bottom: 1px solid var(--border-color);
+}
+.rp-history-total {
+    font-size: 30px;
+    font-weight: 800;
+    color: #D9A441;
+    margin-bottom: 14px;
+}
+.rp-history-total-unit {
+    font-size: 16px;
+    font-weight: 700;
+}
+.rp-history-mini-cards {
+    display: flex;
+    gap: 10px;
+}
+.rp-history-mini-card {
+    flex: 1;
+    background: var(--primary-bg);
+    border-radius: 10px;
+    padding: 10px 4px;
+}
+.rp-history-mini-num {
+    font-size: 17px;
+    font-weight: 800;
+    color: var(--text-primary);
+}
+.rp-history-mini-label {
+    font-size: 11px;
+    color: var(--text-secondary);
+    margin-top: 2px;
+}
+
+.rp-history-list {
+    overflow-y: auto;
+    padding: 6px 22px 22px;
+    min-height: 0;
+}
+.rp-history-empty {
+    text-align: center;
+    font-size: 13px;
+    color: var(--text-secondary);
+    opacity: 0.6;
+    padding: 40px 0;
+}
+.rp-hist-day-group {
+    margin-top: 14px;
+}
+.rp-hist-day-label {
+    font-size: 11.5px;
+    color: var(--text-secondary);
+    opacity: 0.7;
+    margin-bottom: 8px;
+}
+.rp-hist-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 0;
+    border-bottom: 1px solid var(--border-color);
+}
+.rp-hist-row:last-child { border-bottom: none; }
+.rp-hist-row-icon { flex-shrink: 0; }
+.rp-hist-row-icon .rp-icon-svg {
+    width: 22px;
+    height: 28.4px;
+}
+.rp-hist-row-mid {
+    flex: 1;
+    min-width: 0;
+}
+.rp-hist-row-blessing {
+    font-size: 13.5px;
+    color: var(--text-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.rp-hist-row-time {
+    font-size: 11px;
+    color: var(--text-secondary);
+    opacity: 0.7;
+    margin-top: 2px;
+}
+.rp-hist-row-right {
+    flex-shrink: 0;
+    text-align: right;
+}
+.rp-hist-row-amount {
+    font-size: 13.5px;
+    font-weight: 700;
+    color: #D9A441;
+}
+.rp-hist-row-status {
+    font-size: 10.5px;
+    margin-top: 3px;
+}
+.rp-hist-status-received { color: #4CAF50; }
+.rp-hist-status-returned { color: var(--text-secondary); opacity: 0.7; }
+.rp-hist-status-pending { color: #FFA445; }
+
+/* ── 未拆开卡片右上角的"..."菜单按钮，点了直接进历史记录页 ── */
+.rp-card-menu-btn {
+    position: absolute;
+    top: 4%;
+    right: 5%;
+    z-index: 3;
+    width: 11%;
+    aspect-ratio: 1.6;
+    min-width: 30px;
+    border: none;
+    border-radius: 20px;
+    background: rgba(255,255,255,0.16);
+    color: #F6E3B4;
+    font-size: 13px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.rp-card-menu-btn:active {
+    background: rgba(255,255,255,0.28);
+}
+
+/* ── 開按钮点开时的金元宝旋转动效（照抄抉择助手"抛硬币"那套3D翻转手法：
+   transform-style:preserve-3d + backface-visibility:hidden + rotateY 多圈旋转，
+   只是时长更短——这是个开启的过场，不是要悬念感的结果揭晓） ── */
+.rp-card-open-circle.rp-coin-spinning {
+    animation: rpCoinSpin 0.9s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+    pointer-events: none;
+    backface-visibility: hidden;
+}
+@keyframes rpCoinSpin {
+    0% {
+        transform: translateX(-50%) rotateY(0deg) scale(1);
+        animation-timing-function: ease-in;
+    }
+    45% {
+        transform: translateX(-50%) rotateY(720deg) scale(1.28);
+        animation-timing-function: ease-out;
+    }
+    100% {
+        transform: translateX(-50%) rotateY(1080deg) scale(1);
+    }
+}
+
+/* ============================================================
+   带表情包的卡片变体——不是同一套布局塞个图进去，是Yuying另外给的
+   专门稿子，头部弧线位置、頭像/祝福语/開按钮/金额的位置都跟着挪了。
+   坐标原样抠自那两份新SVG（未拆红包.svg / 带表情包.svg）。
+   ============================================================ */
+.rp-card-sticker-img {
+    /* 改成跟主聊天 .message-image 一个逻辑：只卡宽度，高度不设死，
+       跟着图片本身的比例自然撑开，圆角直接打在图片上——不裁切、不用背景凑一个方框。
+       left/width 沿用卡片美术图设计好的插槽宽度；top 挪到插槽的垂直中心点，
+       配合 translateY(-50%) 让图不管高矮都以设计好的中心为基准，不会因为
+       高度不固定了就贴着某一边跑偏 */
+    position: absolute;
+    left: 39.3%;
+    width: 21.3%;
+    height: auto;
+    max-height: none;
+    object-fit: unset;
+    background: none;
+    border-radius: 12px; /* 跟聊天图片消息的圆角对齐 */
+    transform: translateY(-50%);
+    z-index: 2;
+}
+
+/* 未拆开红卡+表情包：头部弧线往下收了(73.3%~79.4%，原来68.5%~75.7%)，
+   頭像/祝福语跟着往上提，開按钮往下挪到67.1%，表情包卡在祝福语和開按钮中间 */
+.rp-card-sealed.rp-card-has-sticker .rp-card-header-row { top: 19.1%; }
+.rp-card-sealed.rp-card-has-sticker .rp-card-blessing { top: 28%; }
+.rp-card-sealed.rp-card-has-sticker .rp-card-sticker-img {
+    /* top 从"框的顶边"改成"插槽的垂直中心"(原38.5% + 原高15.5%/2 = 46.25%)，
+       配合上面 translateY(-50%) 生效；height 不再固定，交给图片自己的比例 */
+    top: 46.25%;
+    left: 37%;
+    width: 26%;
+}
+.rp-card-sealed.rp-card-has-sticker .rp-card-open-circle { top: 67.1%; }
+
+/* 拆开白卡/已退回灰卡+表情包：头部弧线往上收了(16.5%~22.8%，原来31.4%~36.6%)，
+   頭像/祝福语跟着往上提，表情包卡在祝福语和金额中间（拆开之后这张图放大一点，
+   left/width一起调是为了保持水平居中不偏），金额挪到64% */
+.rp-card-opened.rp-card-has-sticker .rp-card-header-row,
+.rp-card-returned.rp-card-has-sticker .rp-card-header-row { top: 28.3%; }
+.rp-card-opened.rp-card-has-sticker .rp-card-blessing-grey,
+.rp-card-returned.rp-card-has-sticker .rp-card-blessing-grey { top: 37%; }
+.rp-card-opened.rp-card-has-sticker .rp-card-sticker-img,
+.rp-card-returned.rp-card-has-sticker .rp-card-sticker-img {
+    /* 同上，改成插槽垂直中心(原42.5% + 原高15.5%/2 = 50.25%) */
+    top: 50.25%;
+    left: 37%;
+    width: 26%;
+}
+.rp-card-opened.rp-card-has-sticker .rp-card-amount,
+.rp-card-returned.rp-card-has-sticker .rp-card-amount { top: 64%; }

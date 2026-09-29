@@ -3317,9 +3317,11 @@ playlist.style.top = (rect.top + (player.classList.contains('collapsed') ? 65 : 
                     e.preventDefault(); isBatchMode ? addToBatch(): sendMessage();
                 }
             });
-            DOMElements.messageInput.addEventListener('input', () => {
-                DOMElements.messageInput.style.height = 'auto'; DOMElements.messageInput.style.height = `${Math.min(DOMElements.messageInput.scrollHeight, 120)}px`;
-            });
+            DOMElements.messageInput.addEventListener('input', window._syncMessageInputHeight);
+            // 页面刚加载、输入框还是空的这一下也要跟着量一次——不然空的时候就只能靠 CSS
+            // min-height 的原生渲染撑着，手机上不同断点（46/42/38px三档）算出来的高度
+            // 跟这套 JS 动态测量对不上，会出现"没文字反而比有文字还高"的错位
+            window._syncMessageInputHeight();
 
 
             DOMElements.attachmentBtn.addEventListener('click', () => {

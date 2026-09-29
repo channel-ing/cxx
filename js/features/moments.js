@@ -252,6 +252,16 @@ window.closeCsVideoPlayer=function(){
     if(overlay)overlay.style.display='none';
 };
 function _fmtDate(d){if(!d)return'';if(d===_mToday())return'今天';const dt=new Date(d),now=new Date();return dt.getFullYear()===now.getFullYear()?`${dt.getMonth()+1}月${dt.getDate()}日`:d;}
+// 动态卡片底部的日期+具体时间——评论那边不用这个，只有动态本身要带时间。
+// 时间来自 post.timestamp（发布时那一刻的 Date.now()，跟互动通知里显示的是同一个时间源），
+// 24小时制，不足两位补零（比如 9:05 显示成 09:05，不是 9:5）
+function _fmtDateTime(post){
+    const datePart=_fmtDate(post.date);
+    if(!post.timestamp)return datePart; // 防御：万一是老数据没有 timestamp 字段，退回只显示日期，不报错
+    const dt=new Date(post.timestamp);
+    const hh=String(dt.getHours()).padStart(2,'0'),mm=String(dt.getMinutes()).padStart(2,'0');
+    return `${datePart} ${hh}:${mm}`;
+}
 
 // ─── 头像 ───
 function _getAvSrc(isPartner){const c=window._avatarCache||{};if(isPartner){if(c.partner)return c.partner;const e=document.getElementById('partner-avatar');return e&&e.src&&!e.src.endsWith('/')?e.src:null;}else{if(c.me)return c.me;const e=document.getElementById('my-avatar');return e&&e.src&&!e.src.endsWith('/')?e.src:null;}}
@@ -458,7 +468,7 @@ function _renderCard(post){
         <div class="cs-post-body">${post.text}</div>
         ${post.video?_videoThumb(post.video,post.videoCover):_imgGrid(post.images)}
         <div class="cs-post-foot">
-            <span class="cs-post-date">${_fmtDate(post.date)}</span>
+            <span class="cs-post-date">${_fmtDateTime(post)}</span>
             <button class="cs-like-btn${likeOn?' on':''}" id="cs-lbtn-${post.id}" onclick="event.stopPropagation();window._mToggleLike('${post.id}')">
                 <i class="${likeOn?'fas':'far'} fa-heart"></i><span id="cs-lc-${post.id}">${likeCount>0?' '+likeCount:''}</span>
             </button>

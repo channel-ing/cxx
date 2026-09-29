@@ -158,6 +158,10 @@ function _renderListContentOnly() {
             if (typeof window._surveyRenderBankTab === 'function') window._surveyRenderBankTab(list);
             return;
         }
+        else if (currentSubTab === 'redpacketBank') {
+            if (typeof window._redpacketRenderBankTab === 'function') window._redpacketRenderBankTab(list);
+            return;
+        }
     }
 
     if (renderType === 'emoji') { _renderEmojiTab(list, itemsToRender); return; }
@@ -251,6 +255,10 @@ function renderReplyLibrary() {
             if (typeof window._surveyRenderBankTab === 'function') window._surveyRenderBankTab(list);
             return;
         }
+        else if (currentSubTab === 'redpacketBank') {
+            if (typeof window._redpacketRenderBankTab === 'function') window._redpacketRenderBankTab(list);
+            return;
+        }
     }
 
     if (renderType === 'emoji') { _renderEmojiTab(list, itemsToRender); return; }
@@ -275,7 +283,7 @@ function _renderModernToolbar() {
     let toolbar = document.getElementById('batch-ops-toolbar');
     // 问卷题库这个 tab 是自己单独一套渲染（对象结构，不是纯字符串数组），
     // 不走下面这套批量管理/分组/去重逻辑——那些都是照着字符串数组写的，硬塞进来只会出岔子
-    if (currentMajorTab === 'atmosphere' && currentSubTab === 'surveyBank') {
+    if (currentMajorTab === 'atmosphere' && (currentSubTab === 'surveyBank' || currentSubTab === 'redpacketBank')) {
         if (toolbar) toolbar.style.display = 'none';
         return;
     }
@@ -2364,6 +2372,10 @@ function initReplyLibraryListeners() {
                 // 问卷题库有自己独立的批量添加+分组弹窗（在 survey.js 里），不能落到下面这坨通用兜底逻辑，
                 // 不然会弹出丑陋的原生 prompt()——这个共享按钮以前根本不认识这个子tab
                 if (typeof window._surveyShowBankBatchAddDialog === 'function') window._surveyShowBankBatchAddDialog();
+                return;
+            }
+            if (currentSubTab === 'redpacketBank') {
+                if (typeof window._redpacketShowBankBatchAddDialog === 'function') window._redpacketShowBankBatchAddDialog();
                 return;
             }
             let input;

@@ -29,6 +29,8 @@
     <link rel="stylesheet" href="css/my-sticker-groups.css">
     <link rel="stylesheet" href="css/global-msg-banner.css">
     <link rel="stylesheet" href="css/survey.css">
+    <link rel="stylesheet" href="css/more-menu.css">
+    <link rel="stylesheet" href="css/redpacket.css">
 
     <style id="css-live-preview-style"></style>
     <style>
@@ -293,6 +295,17 @@ html[data-theme="dark"] #cs-transition-overlay{background:radial-gradient(circle
     <button id="back-to-latest-btn" onclick="window._backToLatestMessages&&window._backToLatestMessages()">
         <i class="fas fa-arrow-down"></i><span id="back-to-latest-label"></span>
     </button>
+    <button id="rp-expiry-reminder-btn" style="display:none;" onclick="window.RedPacket.jumpToExpiryReminder()">
+        <span class="rp-icon-svg" style="width:14px;height:18px;display:inline-flex;">
+            <svg viewBox="1951 10584 635 819.516" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%;">
+                <rect x="1951" y="10584" width="635" height="819.516" rx="73" fill="#FF5151"/>
+                <path d="M1951 10928C1951 10928 2064.5 11013.9 2273 11013.5C2481.5 11013.1 2586 10928 2586 10928V11331C2586 11371.3 2553.32 11404 2513 11404H2024C1983.68 11404 1951 11371.3 1951 11331V10928Z" fill="#E14849"/>
+                <circle cx="2269" cy="11021" r="92" fill="#FFD145"/>
+                <path d="M2234 10970L2268.36 11000.2M2268.36 11000.2L2303 10970M2268.36 11000.2V11072M2223.5 11009.1H2314.63M2223 11042H2314.12" stroke="#D97F22" stroke-width="15" stroke-linecap="round"/>
+            </svg>
+        </span>
+        <span id="rp-expiry-reminder-label">1个红包待领取</span>
+    </button>
     <div class="empty-state" id="empty-state" style="display:none;position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:20px;width:100%;pointer-events:none;z-index:1;">
             <div style="position:relative;margin-bottom:20px;">
                 <i class="fas fa-heart" style="font-size:52px;opacity:0.55;color:var(--accent-color);"></i>
@@ -402,20 +415,26 @@ html[data-theme="dark"] #cs-transition-overlay{background:radial-gradient(circle
         </div>
         <div class="input-area">
     <button id="collapse-expand-btn" title="展开更多" style="display:none;width:36px;height:36px;border:none;border-radius:50%;cursor:pointer;background:rgba(var(--accent-color-rgb),0.12);color:var(--accent-color);font-size:14px;transition:all 0.25s;flex-shrink:0;align-items:center;justify-content:center;" onclick="window.toggleCollapsedExtras && window.toggleCollapsedExtras()"><i class="fas fa-chevron-up"></i></button>
-    <!-- 视频通话按钮（替代原麦克风位置）-->
-    <button class="videocall-btn input-btn" id="videocall-btn" title="视频通话"><i class="fas fa-video"></i></button>
-    <button class="attachment-btn input-btn collapse-hideable" id="attachment-btn" title="发送图片"><i class="fas fa-image"></i></button>
-    
-    <button class="combo-btn input-btn collapse-hideable" id="combo-btn" title="表情 & 拍一拍">
+    <!-- 视频通话/图片/批量发送：功能已经挪进"更多"菜单，这三个按钮留在DOM里只是因为其它JS文件
+         直接引用了它们的元素（DOMElements.attachmentBtn / .batchBtn 等，没有做空值判断），
+         删掉元素会报错，所以只用 input-btn-relocated 类隐藏，不删除。 -->
+    <button class="videocall-btn input-btn input-btn-relocated" id="videocall-btn" title="视频通话"><i class="fas fa-video"></i></button>
+    <button class="attachment-btn input-btn input-btn-relocated" id="attachment-btn" title="发送图片"><i class="fas fa-image"></i></button>
+
+    <button class="continue-btn input-btn" id="continue-btn" title="让对方继续说"><i class="fas fa-ellipsis-h"></i></button>
+
+    <textarea class="message-input" id="message-input" placeholder="" rows="1"></textarea>
+
+    <button class="combo-btn input-btn" id="combo-btn" title="表情 & 拍一拍">
         <i class="fas fa-laugh-beam"></i>
     </button>
 
-    <textarea class="message-input" id="message-input" placeholder="" rows="1"></textarea>
-    
     <div class="input-buttons">
-    <button class="continue-btn input-btn" id="continue-btn" title="让对方继续说"><i class="fas fa-ellipsis-h"></i></button>
-        <button class="batch-btn input-btn collapse-hideable" id="batch-btn" title="批量发送模式"><i class="fas fa-layer-group"></i></button>
-        <button class="send-btn input-btn" id="send-btn" title="发送消息"><i class="fas fa-paper-plane"></i></button>
+    <button class="batch-btn input-btn input-btn-relocated" id="batch-btn" title="批量发送模式"><i class="fas fa-layer-group"></i></button>
+    <button class="more-menu-btn input-btn" id="more-menu-btn" title="更多">
+        <i class="fas fa-plus"></i>
+    </button>
+    <button class="send-btn input-btn" id="send-btn" title="发送消息"><i class="fas fa-paper-plane"></i></button>
         
         <div class="sticker-picker-popover" id="user-sticker-picker">
             <div class="combo-tabs-header">
@@ -437,7 +456,8 @@ html[data-theme="dark"] #cs-transition-overlay{background:radial-gradient(circle
     </div>
     <input type="file" id="image-input" class="file-input" accept="image/*">
     <input type="file" id="my-sticker-quick-upload" class="file-input" accept="image/*" multiple>
-</div>
+        </div>
+        <div class="more-menu-panel" id="more-menu-panel" style="display:none;"></div>
     </div>
 
 
@@ -814,6 +834,70 @@ html[data-theme="dark"] #cs-transition-overlay{background:radial-gradient(circle
     </div>
 </div>
 
+<div class="modal" id="redpacket-compose-modal">
+    <div class="modal-content rp-compose-content">
+        <div class="rp-compose-header">
+            <span class="rp-compose-header-icon" id="rp-compose-header-icon"></span>
+            <span class="rp-compose-title">发红包</span>
+        </div>
+        <div class="rp-compose-row rp-compose-row-amount">
+            <span class="rp-compose-row-label">金额</span>
+            <input type="text" inputmode="decimal" id="rp-compose-amount" class="rp-compose-row-input" placeholder="¥0.00">
+        </div>
+        <div class="rp-compose-row rp-compose-row-blessing-wrap">
+            <input type="text" id="rp-compose-blessing" class="rp-compose-row-input rp-compose-blessing-input" placeholder="开心一下" maxlength="40">
+            <button type="button" class="rp-compose-sticker-slot" id="rp-compose-sticker-slot" onclick="window.RedPacket.onStickerSlotClick()">
+                <i class="fas fa-face-smile" id="rp-compose-sticker-slot-icon"></i>
+                <img id="rp-compose-sticker-slot-img" style="display:none;">
+            </button>
+        </div>
+        <div class="rp-compose-preview">
+            <span class="rp-compose-preview-sign">¥</span><span id="rp-compose-preview-amount">0.00</span>
+        </div>
+        <button class="rp-btn-primary rp-compose-send-btn" id="rp-compose-send-btn" onclick="window.RedPacket.submitCompose()">塞钱进红包</button>
+        <div class="rp-compose-footnote">未领取的红包将于24小时后退回</div>
+        <button class="rp-compose-cancel" onclick="hideModal(document.getElementById('redpacket-compose-modal'))"><i class="fas fa-times"></i></button>
+    </div>
+</div>
+<div class="modal" id="rp-sticker-picker-modal">
+    <div class="modal-content rp-sticker-picker-content">
+        <div class="rp-history-header">
+            <span class="rp-history-title">请选择一个表情</span>
+            <button class="rp-history-close" onclick="hideModal(document.getElementById('rp-sticker-picker-modal'))"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="my-sticker-group-row" id="rp-sticker-picker-groups" style="flex-shrink:0;padding:0 22px 10px;"></div>
+        <div class="rp-sticker-picker-scrollwrap" id="rp-sticker-picker-scrollwrap">
+            <div class="rp-sticker-picker-grid" id="rp-sticker-picker-grid"></div>
+        </div>
+    </div>
+</div>
+<div class="modal" id="rp-sticker-delete-modal">
+    <div class="modal-content" style="max-width:300px;">
+        <div class="modal-title"><i class="fas fa-face-smile"></i><span>要删除这个表情包吗？</span></div>
+        <div class="modal-buttons">
+            <button class="modal-btn modal-btn-secondary" onclick="hideModal(document.getElementById('rp-sticker-delete-modal'))">取消</button>
+            <button class="modal-btn modal-btn-primary" onclick="window.RedPacket.confirmStickerDelete()">删除</button>
+        </div>
+    </div>
+</div>
+<div class="modal" id="redpacket-view-modal">
+    <div class="modal-content rp-view-content" id="rp-view-content-inner"></div>
+</div>
+<div class="modal" id="redpacket-history-modal">
+    <div class="modal-content rp-history-content">
+        <div class="rp-history-header">
+            <span class="rp-history-title">红包记录</span>
+            <button class="rp-history-close" onclick="hideModal(document.getElementById('redpacket-history-modal'))"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="rp-history-tabs">
+            <button class="rp-history-tab" data-tab="inbox" onclick="window.RedPacket.switchHistoryTab('inbox')">梦角发出的</button>
+            <button class="rp-history-tab" data-tab="outbox" onclick="window.RedPacket.switchHistoryTab('outbox')">我发出的</button>
+        </div>
+        <div class="rp-history-avatar" id="rp-history-avatar"></div>
+        <div class="rp-history-stats" id="rp-history-stats"></div>
+        <div class="rp-history-list" id="rp-history-list"></div>
+    </div>
+</div>
 <div class="modal" id="envelope-modal">
     <div class="modal-content" style="max-height:92vh; padding:0; overflow:hidden; background:transparent;">
     <div class="env-wrapper">
@@ -2711,7 +2795,7 @@ html[data-theme="dark"] #cs-transition-overlay{background:radial-gradient(circle
                         <button onclick="window._jumpToDate && window._jumpToDate()" class="modal-btn modal-btn-primary" style="padding:5px 12px;font-size:12px;">跳转</button>
                     </div>
                 </div>
-                <div id="msg-search-results" style="max-height:52vh;overflow-y:auto;margin-top:10px;margin-left:-4px;margin-right:-4px;"></div>
+                <div id="msg-search-results" style="flex:1;min-height:0;overflow-y:auto;margin-top:10px;margin-left:-4px;margin-right:-4px;"></div>
             </div>
             <div id="favorites-panel" style="display:none;">
                 <div style="display:flex;justify-content:flex-end;margin-bottom:10px;">
@@ -3625,6 +3709,8 @@ html[data-theme="dark"] #cs-transition-overlay{background:radial-gradient(circle
     <script src="js/features/cinema.js"></script>
     <script src="js/features/global-msg-banner.js"></script>
     <script src="js/features/survey.js"></script>
+    <script src="js/features/more-menu.js"></script>
+    <script src="js/features/redpacket.js"></script>
 <!-- 相册图片详情（全屏） -->
 <div id="al-view-detail" style="display:none;position:fixed;inset:0;z-index:6000;background:#000;flex-direction:column;">
     <div class="al-detail-topbar">

@@ -16,7 +16,10 @@ window.switchStatsTab = function(tab) {
     if (tab === 'stats') {
         if (statsPanel) statsPanel.style.display = 'block';
     } else if (tab === 'search') {
-        if (searchPanel) searchPanel.style.display = 'block';
+        // 这里要设成 flex，不是 block——#search-panel 在 CSS 里配的是
+        // display:flex+flex-direction:column（跟#stats-content一样内部自己滚动），
+        // 内联样式的优先级比外部CSS高，设成block会把CSS那条规则盖掉，布局又会乱回去
+        if (searchPanel) searchPanel.style.display = 'flex';
         setTimeout(function() {
             var inp = document.getElementById('msg-search-input');
             if (inp) inp.focus();

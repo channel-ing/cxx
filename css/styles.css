@@ -5330,6 +5330,22 @@
             display: none;
         }
 
+        /* "搜索"这个tab（#search-panel）之前没配到跟"统计"tab（#stats-content）一样的
+           flex:1+overflow-y:auto处理，导致它的高度算不准，撑爆了.modal-content的
+           max-height:85vh+overflow:hidden这个整体布局，底部"返回/关闭"按钮的定位跟着乱掉、
+           盖在内容中间。这里让#search-panel也参与flex布局、自己内部滚动，
+           跟#stats-content用的是同一套写法，保持一致 */
+        #search-panel {
+            flex: 1;
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        #search-panel .stats-search-box {
+            flex-shrink: 0;
+        }
+
         #stats-modal .modal-buttons {
             flex-shrink: 0;
             margin-top: 0;
@@ -10820,8 +10836,7 @@
 #moments-header-btn   { order: 4; }
 #settings-btn         { order: 5; }
 
-/* 底部输入区：隐藏让对方继续说、批量发送、发送按钮 */
-#continue-btn,
+/* 底部输入区：隐藏批量发送、发送按钮（让对方继续说已改为显示，见下方"第三步"） */
 #batch-btn,
 #send-btn,
 /* 也隐藏"展开"模式里的批量按钮 */
@@ -10840,7 +10855,9 @@
    ──────────────────────────────────────────────────────────────── */
 
 /* 输入区视觉重排（用 flex order，不改 DOM 顺序）
-   目标布局：[📹视频通话] [输入框] [😀表情] [🖼图片] */
+   目标布局：[📹视频通话] [输入框] [😀表情] [🖼图片] [💬让对方继续说]
+   最后一个"继续说"按钮实际是 .input-buttons 容器里唯一还显示的按钮
+   （批量发送/发送按钮已在上面隐藏），容器整体 order:5 排在最右边 */
 #videocall-btn   { order: 1; }
 .message-input   { order: 2; }
 #combo-btn       { order: 3; }

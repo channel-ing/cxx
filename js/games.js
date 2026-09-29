@@ -1472,6 +1472,9 @@ function initComboMenu() {
         if (isActive) {
             picker.classList.remove('active');
         } else {
+            // 跟"更多"面板互斥：表情面板要打开时，先把"更多"面板收起来，
+            // 不能让两个面板叠在一起同时显示
+            if (window.MoreMenu && typeof window.MoreMenu.close === 'function') window.MoreMenu.close();
             switchTab('my-sticker');
             picker.classList.add('active');
         }

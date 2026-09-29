@@ -724,6 +724,7 @@ const LIBRARY_CONFIG = {
             { id: 'statuses', name: '对方状态', mode: 'list' },
             { id: 'surveyBank', name: '问卷题库', mode: 'list' },
             { id: 'period', name: '经期', mode: 'list' },
+            { id: 'redpacketBank', name: '红包祝福语', mode: 'list' },
             { id: 'mottos', name: '顶部格言', mode: 'list' },
             { id: 'intros', name: '开场动画', mode: 'list' }
         ]
@@ -1319,9 +1320,12 @@ function createMessageFragment(msg, prevMsg, nextMsg, lastSenderRef) {
         messageHTML += `<div class="reply-indicator" data-reply-id="${msg.replyTo.id || ''}" style="cursor:pointer;" onclick="scrollToQuotedMessage(this)"><span class="reply-indicator-sender">${repliedSender}</span><span class="reply-indicator-text">${repliedText}</span></div>`;
     }
 
+    const isRedPacket = msg.type === 'redpacket';
     const isImageOnly = !msg.text && !!msg.image;
     let content = msg.text ? `<div>${msg.text.replace(/\n/g, '<br>')}</div>` : '';
-    if (msg.image) {
+    if (isRedPacket) {
+        content = (window.RedPacket && typeof window.RedPacket.renderBubbleHTML === 'function') ? window.RedPacket.renderBubbleHTML(msg) : '';
+    } else if (msg.image) {
         // 阶段三B：识别 oss:// 走懒加载；识别 pending:// 走本地 base64 + 上传中角标
         const isCloudImg = typeof msg.image === 'string' && msg.image.indexOf('oss://') === 0;
         const isPendingImg = typeof msg.image === 'string' && msg.image.indexOf('pending://') === 0;
@@ -1341,7 +1345,9 @@ function createMessageFragment(msg, prevMsg, nextMsg, lastSenderRef) {
     messageHTML += content;
 
     const messageDiv = document.createElement('div');
-    if (isImageOnly) {
+    if (isRedPacket) {
+        messageDiv.className = `message message-${msg.sender === 'user' ? 'sent' : 'received'} message-redpacket-bubble-wrap`;
+    } else if (isImageOnly) {
         messageDiv.className = `message message-${msg.sender === 'user' ? 'sent' : 'received'} message-image-bubble-none`;
     } else {
         messageDiv.className = `message message-${msg.sender === 'user' ? 'sent' : 'received'} ${settings.bubbleStyle}`;
@@ -1530,7 +1536,26 @@ window._jumpToMessage = function(id) {
     requestAnimationFrame(() => {
         const el = container.querySelector('[data-msg-id="' + id + '"]');
         if (el) {
-            el.scrollIntoView({ behavior: 'auto', block: 'center' });
+            // .chat-container 全局设了 scroll-behavior:smooth，scrollIntoView 的 behavior:'auto'
+            // 会被这个 CSS 接管、跟着走平滑滚动——跳转距离近（比如搜索/引用跳转，通常离得不远）
+            // 时不明显，但这次是从聊天末尾跳回一千多条之前，平滑动画跟不上，滚一半就没跟上了，
+            // 实测卡在半路（scrollTop 只挪了几百px，目标还在屏幕外几千px）。
+            // 改成直接算偏移量手动设 scrollTop，不走 scrollIntoView 那条会被 CSS 平滑滚动
+            // 接管的路径，保证不管跳多远都是瞬间到位。
+            const containerRect = container.getBoundingClientRect();
+            const elRect = el.getBoundingClientRect();
+            const offset = (elRect.top - containerRect.top) - (container.clientHeight / 2) + (elRect.height / 2);
+            const newScrollTop = container.scrollTop + offset;
+            // 直接赋值 scrollTop 在新一点的浏览器实现里，一样会被 CSS 的 scroll-behavior:smooth
+            // 接管（CSSOM View 规范里，设置 scrollTop 本身也算一次"滚动操作"，跟 scrollIntoView
+            // 是同一套受 CSS 影响的机制，不是只有 scrollIntoView 才会被смооth）。
+            // 改成显式调用 scrollTo 并传 behavior:'instant'——这个选项的优先级最高，
+            // 不管 CSS 怎么设，都会强制瞬间跳到位，不会再半路"跟丢"。
+            if (typeof container.scrollTo === 'function') {
+                container.scrollTo({ top: newScrollTop, behavior: 'instant' });
+            } else {
+                container.scrollTop = newScrollTop;
+            }
             el.style.transition = 'background .3s ease';
             el.style.background = 'rgba(var(--accent-color-rgb),.14)';
             setTimeout(() => { el.style.background = ''; }, 1800);
@@ -1842,6 +1867,18 @@ const addMessage = (message) => {
             (function(){try{if(window._typingIndicatorAutoHideTimer){clearTimeout(window._typingIndicatorAutoHideTimer);window._typingIndicatorAutoHideTimer=null;}}catch(e){}var _tiW=document.getElementById('typing-indicator-wrapper');if(_tiW){var _tiInner=_tiW.querySelector('.typing-indicator');if(_tiInner){_tiInner.classList.add('hiding');setTimeout(function(){_tiW.style.display='none';if(_tiInner)_tiInner.classList.remove('hiding');},240);}else{_tiW.style.display='none';}}})();
         };
 
+        // 输入框高度动态测量——不管清空还是有内容，统一走这一个函数，不再写死具体像素值。
+        // styles.css 里 .message-input 在不同断点下 min-height 是不一样的（桌面46px/手机≤768px是
+        // 42px/更小屏幕≤480px是38px），写死一个数字在窄屏上就会跟正确值对不上，
+        // 表现出来就是"空的时候"（走写死值）比"有文字的时候"（走这里的scrollHeight动态测量）更高或更矮。
+        // 用 scrollHeight 量出来的高度，天然就是当前断点下 CSS 实际生效的那个值，不用关心断点数字本身。
+        function _syncMessageInputHeight() {
+            if (!DOMElements.messageInput) return;
+            DOMElements.messageInput.style.height = 'auto';
+            DOMElements.messageInput.style.height = `${Math.min(DOMElements.messageInput.scrollHeight, 120)}px`;
+        }
+        window._syncMessageInputHeight = _syncMessageInputHeight;
+
         function sendMessage(textOverride = null, type = 'normal') {
             const text = textOverride || DOMElements.messageInput.value.trim();
             const imageFile = DOMElements.imageInput.files[0];
@@ -1852,14 +1889,14 @@ const addMessage = (message) => {
                 const cmd = text.replace(/\s+/g, '').toLowerCase();
                 if (cmd === '/测试拍一拍' || cmd === '/testpoke') {
                     DOMElements.messageInput.value = '';
-                    DOMElements.messageInput.style.height = '46px';
+                    _syncMessageInputHeight();
                     if (typeof window._triggerPartnerPoke === 'function') window._triggerPartnerPoke();
                     if (typeof showNotification === 'function') showNotification('✦ 强制触发对方拍一拍', 'info', 1800);
                     return;
                 }
                 if (cmd === '/测试状态更新' || cmd === '/teststatus') {
                     DOMElements.messageInput.value = '';
-                    DOMElements.messageInput.style.height = '46px';
+                    _syncMessageInputHeight();
                     if (typeof window._triggerStatusChange === 'function') window._triggerStatusChange();
                     if (typeof showNotification === 'function') showNotification('✦ 强制触发状态更新', 'info', 1800);
                     return;
@@ -1867,7 +1904,7 @@ const addMessage = (message) => {
             }
 
             DOMElements.messageInput.value = '';
-            DOMElements.messageInput.style.height = '46px';
+            _syncMessageInputHeight();
             if (imageFile && imageFile.size > MAX_IMAGE_SIZE) {
                 showNotification('图片大小不能超过5MB', 'error'); DOMElements.imageInput.value = ''; return;
             }
@@ -1925,7 +1962,7 @@ if (!isBatchMode && type === 'normal') {
             batchMessages.push({
                 id: Date.now() + batchMessages.length, text: text || '', image: imageOverride || null
             });
-            DOMElements.messageInput.value = ''; DOMElements.messageInput.style.height = '46px';
+            DOMElements.messageInput.value = ''; _syncMessageInputHeight();
             updateBatchPreview();
         }
 
@@ -2144,6 +2181,16 @@ if (partnerPersonas && partnerPersonas.length > 0 && Math.random() < 0.3) {
                 // ── 对方拍一拍：调用提取的通用函数（同时供 /测试拍一拍 指令使用）──
                 if (typeof window._triggerPartnerPoke === 'function') window._triggerPartnerPoke();
                 return;
+            }
+
+            // ── 梦角主动发红包：跟上面拍一拍是完全独立的两套判定，互不影响——
+            // 不 return，不影响这次正常回复照常生成；异步调用，不 await，不拖慢/阻塞回复流程，
+            // 红包该不该发、发不发得出去，evaluatePartnerTrigger 内部自己算完自己存，
+            // 这里只是在梦角每次要生成回复之前，顺手多"戳"它判定一次
+            if (window.RedPacket && typeof window.RedPacket.evaluatePartnerTrigger === 'function') {
+                window.RedPacket.evaluatePartnerTrigger().catch(function (e) {
+                    console.warn('[红包] 判定过程出错，这次先跳过', e);
+                });
             }
 
             const replyCount = Math.random() < 0.75 ? 1: (Math.random() < 0.95 ? 2: 3);

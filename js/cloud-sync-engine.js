@@ -58,6 +58,9 @@
         'periodData',
         // 调查问卷（我问梦角/梦角问我，图片选项是 oss:// 引用或未配置OSS时的本地 base64，体积小）
         'surveyData',
+        // 红包（发送/接收记录、留言库、调度器状态——金额和祝福语都是纯文字，
+        // 之前这个键完全没在同步清单里，红包这块的文字数据一直没被云端同步覆盖到）
+        'redpacketData',
         // 纪念日
         'anniversaries', 'annCoverBg_', 'annMeetOverride', 'annPinnedId',
         // 相册（相册列表/照片归属/收藏/回收站，图片本身是 oss:// 引用，体积小）
@@ -324,6 +327,29 @@
                             return true;
                         });
                         payload.indexedDB[k] = sanitizedStickers;
+                        continue;
+                    }
+                    // 红包（outbox/inbox 记录里可能挂了表情包）：金额/祝福语/状态这些纯文字全部同步，
+                    // sticker 字段跟贴纸库同一套过滤逻辑——oss://引用保留（体积小），
+                    // 本地base64跳过（换设备后这条记录就是没配表情包，不影响金额/祝福语这些主要信息）
+                    if (k.indexOf('redpacketData') !== -1 && v && typeof v === 'object') {
+                        var sanitizeRpList = function (list) {
+                            if (!Array.isArray(list)) return list;
+                            return list.map(function (r) {
+                                if (!r || typeof r !== 'object' || typeof r.sticker !== 'string') return r;
+                                if (r.sticker.indexOf('oss://') === 0) return r;
+                                if (r.sticker.indexOf('data:') === 0) {
+                                    var copy = Object.assign({}, r);
+                                    copy.sticker = null;
+                                    return copy;
+                                }
+                                return r;
+                            });
+                        };
+                        var sanitizedRp = Object.assign({}, v);
+                        if (Array.isArray(v.outbox)) sanitizedRp.outbox = sanitizeRpList(v.outbox);
+                        if (Array.isArray(v.inbox)) sanitizedRp.inbox = sanitizeRpList(v.inbox);
+                        payload.indexedDB[k] = sanitizedRp;
                         continue;
                     }
                     // 阶段三B 保护：companionData（嵌套对象，递归过滤 base64 大数据）

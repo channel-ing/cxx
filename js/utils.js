@@ -476,7 +476,7 @@ async function importAllData(file) {
             {
                 id: 'chat',
                 label: '聊天记录 / 会话 / 红包',
-                indexedDBNeedles: ['chatMessages', 'sessionList', 'chatSettings', 'showPartnerNameInChat', 'envelopeData', 'pending_envelope'],
+                indexedDBNeedles: ['chatMessages', 'sessionList', 'chatSettings', 'showPartnerNameInChat', 'envelopeData', 'pending_envelope', 'redpacketData'],
                 localStorageNeedles: ['groupChatSettings']
             },
             {

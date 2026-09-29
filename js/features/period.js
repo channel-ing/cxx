@@ -126,6 +126,19 @@
         _loaded = true;
     }
 
+    // 供 redpacket.js 的"经期第一天"红包判定用——只读，不改动经期功能自己的任何状态。
+    // 判定"今天算不算真的记录了经期第一天"：只看 periods 里有没有一条 startDate === 今天。
+    // 不用查是不是"预测"的，也不用额外辨认是不是补录——补录（长按日历格子）写死了只能选
+    // 今天之前的日期（见 _bindCalCells 里 dateStr < _today() 那个判断），今天这个日期
+    // 只有真的点了"标记经期"按钮（_startPeriod）才会出现，天然就排除了补录的情况。
+    // period.js 的数据是懒加载的（只有用户打开过经期页面才会触发 _load），这里主动确保
+    // 加载一次，不依赖用户是否点开过这个页面。
+    window._pdIsTodayPeriodStart = async function () {
+        if (!_loaded) await _load();
+        var today = _today();
+        return _data.periods.some(function (p) { return p.startDate === today; });
+    };
+
     async function _save() {
         try {
             var key = await _getKey();

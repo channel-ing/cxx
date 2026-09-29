@@ -1,0 +1,98 @@
+/* ============================================================
+   更多菜单（输入区 "+" 弹出的网格菜单）v2
+   独立文件，不动 styles.css 原有内容。
+   ============================================================ */
+
+/* 功能已经挪进"更多"菜单的旧按钮：留在DOM里（避免破坏其它文件里没做空值检查的引用），
+   但在输入区里彻底不显示 */
+.input-btn-relocated {
+    display: none !important;
+}
+
+/* "+" 和 "发送" 共用同一个位置，默认只显示"+" */
+#send-btn {
+    display: none;
+}
+
+#more-menu-btn {
+    background-color: var(--toolbar-btn-bg, var(--message-received-bg));
+    color: var(--toolbar-btn-color, var(--text-secondary));
+}
+#more-menu-btn:hover {
+    color: var(--text-primary);
+}
+#more-menu-btn.active {
+    background: var(--accent-color) !important;
+    color: #fff !important;
+}
+
+/* ── 下方展开面板（微信风格，撑开布局，不是浮层） ── */
+/* 不要任何展开/收起动效，切换要立刻到位，所以这里没有 transition。
+   背景色用 --secondary-bg，跟表情面板（#user-sticker-picker）是同一个变量，
+   会跟着主题色走，不会透出后面的聊天内容 */
+.more-menu-panel {
+    display: none;
+    background: var(--secondary-bg);
+    border-top: 1px solid var(--border-color);
+}
+.more-menu-panel.active {
+    display: block;
+}
+
+.more-menu-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 22px 8px;
+    padding: 20px 18px calc(16px + env(safe-area-inset-bottom, 0px));
+    animation: moreMenuFadeIn 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+@keyframes moreMenuFadeIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+.more-menu-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--text-primary);
+    padding: 2px 0;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.more-menu-icon {
+    width: 54px;
+    height: 54px;
+    border-radius: 14px;
+    background: var(--primary-bg);
+    border: 1px solid var(--border-color);
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    transition: background 0.15s, transform 0.12s;
+}
+.more-menu-emoji {
+    font-size: 26px;
+    line-height: 1;
+}
+
+.more-menu-item:active .more-menu-icon {
+    background: rgba(var(--accent-color-rgb), 0.15);
+    transform: scale(0.93);
+}
+
+.more-menu-item.disabled .more-menu-icon {
+    opacity: 0.7;
+}
+
+.more-menu-label {
+    font-size: 11.5px;
+    color: var(--text-secondary);
+    white-space: nowrap;
+}
