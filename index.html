@@ -417,11 +417,14 @@ html[data-theme="dark"] #cs-transition-overlay{background:radial-gradient(circle
     <button id="collapse-expand-btn" title="展开更多" style="display:none;width:36px;height:36px;border:none;border-radius:50%;cursor:pointer;background:rgba(var(--accent-color-rgb),0.12);color:var(--accent-color);font-size:14px;transition:all 0.25s;flex-shrink:0;align-items:center;justify-content:center;" onclick="window.toggleCollapsedExtras && window.toggleCollapsedExtras()"><i class="fas fa-chevron-up"></i></button>
     <!-- 视频通话/图片/批量发送：功能已经挪进"更多"菜单，这三个按钮留在DOM里只是因为其它JS文件
          直接引用了它们的元素（DOMElements.attachmentBtn / .batchBtn 等，没有做空值判断），
-         删掉元素会报错，所以只用 input-btn-relocated 类隐藏，不删除。 -->
-    <button class="videocall-btn input-btn input-btn-relocated" id="videocall-btn" title="视频通话"><i class="fas fa-video"></i></button>
+         删掉元素会报错，所以只用 input-btn-relocated 类隐藏，不删除。
+         "视频通话"和"让梦角主动说话"这两个位置对调了：视频通话现在显示在输入区主行里，
+         "让梦角主动说话"挪进"更多"菜单（对应下面 continue-btn 加了 input-btn-relocated） -->
     <button class="attachment-btn input-btn input-btn-relocated" id="attachment-btn" title="发送图片"><i class="fas fa-image"></i></button>
 
-    <button class="continue-btn input-btn" id="continue-btn" title="让对方继续说"><i class="fas fa-ellipsis-h"></i></button>
+    <button class="continue-btn input-btn input-btn-relocated" id="continue-btn" title="让对方继续说"><i class="fas fa-ellipsis-h"></i></button>
+
+    <button class="videocall-btn input-btn" id="videocall-btn" title="视频通话"><i class="fas fa-video"></i></button>
 
     <textarea class="message-input" id="message-input" placeholder="" rows="1"></textarea>
 

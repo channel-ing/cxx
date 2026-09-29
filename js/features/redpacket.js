@@ -393,24 +393,36 @@
             var list = [];
             if (typeof _annGetMeetData === 'function') {
                 var meet = _annGetMeetData();
-                if (meet && meet.target) list.push({ name: meet.name, target: meet.target, isCD: false });
+                if (meet && meet.target) list.push({ id: 'meet', name: meet.name, target: meet.target, isCD: false });
             }
             (typeof anniversaries !== 'undefined' ? anniversaries : []).forEach(function (a) {
                 var t = new Date(a.date);
                 if (isNaN(t.getTime())) return;
-                list.push({ name: a.name, target: t, isCD: a.type === 'countdown' });
+                list.push({ id: String(a.id), name: a.name, target: t, isCD: a.type === 'countdown' });
             });
+            var celebrated = (_data.scheduler && Array.isArray(_data.scheduler.celebratedAnn)) ? _data.scheduler.celebratedAnn : [];
             for (var i = 0; i < list.length; i++) {
                 var it = list[i];
                 if (it.isCD) {
                     var dLeft = Math.ceil((it.target - now) / 86400000);
-                    if (dLeft === 0) {
-                        return { kind: 'countdown', text: it.name + _rpRandomWord(), name: it.name };
+                    // 倒数日目标日期本身年年不同（用户会更新，或者本来就是当年的具体日子），
+                    // 用"annId + 目标日期字符串"当key，同一个具体日期只庆祝一次，
+                    // 但如果目标日期变了（比如换了下一年的日子）会自然生成新key，不会被老记录挡住
+                    var cdKey = it.id + ':cd:' + it.target.toDateString();
+                    if (dLeft === 0 && celebrated.indexOf(cdKey) === -1) {
+                        return { kind: 'countdown', text: it.name + _rpRandomWord(), name: it.name, _key: cdKey };
                     }
                 } else {
                     var dPass = Math.floor((now - it.target) / 86400000);
-                    if (dPass > 0 && (dPass === 52 || dPass % 100 === 0)) {
-                        return { kind: 'milestone', text: it.name + dPass + '天' + _rpRandomWord(), name: it.name, days: dPass };
+                    // 52天/100天这种里程碑，同一个纪念日一辈子只会经过一次，用"annId + 具体天数"当key，
+                    // 命中一次就永久记下——不依赖"今天有没有用过"这种按日历日重置的判断。
+                    // 之前就是靠"今天"这个калendar日期来判断，但 dPass 这个天数差是按 UTC 午夜对齐算的，
+                    // 跟本地时区对不上，导致同一个100天在本地午夜前后被判定成"两个不同的今天"，命中了两次
+                    // （Yuying 测出来的那个 bug）。改成"这个天数有没有被庆祝过"之后，不管午夜边界怎么算，
+                    // 同一个 dPass=100 只会被记一次，不会重复。
+                    var msKey = it.id + ':m' + dPass;
+                    if (dPass > 0 && (dPass === 52 || dPass % 100 === 0) && celebrated.indexOf(msKey) === -1) {
+                        return { kind: 'milestone', text: it.name + dPass + '天' + _rpRandomWord(), name: it.name, days: dPass, _key: msKey };
                     }
                 }
             }
@@ -459,9 +471,10 @@
         if (!_data.scheduler || typeof _data.scheduler !== 'object' || 'missedCount' in _data.scheduler) {
             // 兼容旧结构（8~12小时调度器时代留下的 {nextCheckAt, missedCount}）：直接换成新结构，
             // 不试图从旧字段里"翻译"出连续天数，安全起见当成"从没发过"处理（走"全新账号"的40%概率）
-            _data.scheduler = { lastSentDate: null, dailyDate: null, dailyCount: 0, specialUsedDate: null, periodBonusUsedDate: null };
+            _data.scheduler = { lastSentDate: null, dailyDate: null, dailyCount: 0, specialUsedDate: null, periodBonusUsedDate: null, celebratedAnn: [] };
         }
         if (!('periodBonusUsedDate' in _data.scheduler)) _data.scheduler.periodBonusUsedDate = null; // 老数据补个字段，不然是 undefined，跟 today 字符串比较也不会误判，但补上更干净
+        if (!Array.isArray(_data.scheduler.celebratedAnn)) _data.scheduler.celebratedAnn = []; // 老数据补这个字段——记录"哪些纪念日的哪个里程碑/哪次倒数日已经庆祝过"，永久性的，不跟着"今天"重置
         var today = _rpTodayStr();
         if (_data.scheduler.dailyDate !== today) {
             _data.scheduler.dailyDate = today;
@@ -508,9 +521,14 @@
         if (_isGatedByOtherModes()) return null; // 陪伴模式/观影模式期间不判定
         _rpEnsureSchedulerShape();
         var today = _rpTodayStr();
-        if (_data.scheduler.dailyCount >= 3) return null; // 今天3个名额已经用完
 
         var primary = _rpCheckPrimarySpecial();               // 节日/纪念日（互斥，纪念日优先）
+        // 纪念日（里程碑/倒数日）不受"每天最多3个"这个上限约束，一定要发；
+        // 节日不算在内，节日还是跟其它红包一起挤这3个名额
+        var isAnnHit = !!primary && primary.kind !== 'festival';
+
+        if (!isAnnHit && _data.scheduler.dailyCount >= 3) return null; // 今天3个名额已经用完（纪念日不受此约束，跳过这道闸门）
+
         var periodSpecial = await _rpCheckPeriod();            // 经期第一天（今天真的记录了才会非空）
         var isCollision = !!(primary && periodSpecial);
 
@@ -536,9 +554,18 @@
 
         if (Math.random() >= prob) return null; // 没中
 
-        _data.scheduler.dailyCount += 1;
+        // 纪念日不占用"每天最多3个"这个计数——它是额外的，不是挤占普通名额，
+        // 所以这里只有"不是纪念日命中"的情况才会真正累加 dailyCount
+        if (!(special === primary && isAnnHit)) {
+            _data.scheduler.dailyCount += 1;
+        }
         _data.scheduler.lastSentDate = today;
-        if (special === primary && primary) _data.scheduler.specialUsedDate = today;
+        if (special === primary && primary) {
+            _data.scheduler.specialUsedDate = today;
+            // 纪念日的里程碑/倒数日命中了，把这个具体key永久记下来，防止同一个100天
+            // 因为UTC午夜和本地时区对不上，在本地午夜前后被判定成两个不同的"今天"、命中两次
+            if (primary._key) _data.scheduler.celebratedAnn.push(primary._key);
+        }
         if (special === periodSpecial && periodSpecial) {
             // 经期关怀无论是走路径B(撞车追加)还是路径C(单独出现)命中的，都标记"今天用过了"，
             // 防止路径C那种"没撞车"的情况下，同一天因为经期记录一直在、又被反复命中好几次
@@ -592,7 +619,8 @@
             今天经期追加名额: _data.scheduler.periodBonusUsedDate === _rpTodayStr() ? '已用过' : '还没用',
             今天节日或纪念日: primary,
             今天经期第一天: periodSpecial,
-            今天是否撞车: !!(primary && periodSpecial)
+            今天是否撞车: !!(primary && periodSpecial),
+            已庆祝过的纪念日里程碑_倒数日: _data.scheduler.celebratedAnn
         };
         console.log('[红包调度器状态]', info);
         return info;
@@ -606,6 +634,15 @@
         var r = { 节日或纪念日: primary, 经期第一天: periodSpecial, 撞车: !!(primary && periodSpecial) };
         console.log('[红包] 今天特殊日子判定：', r);
         return r;
+    }
+
+    // 4.5 清空"纪念日已庆祝记录"——测试同一个里程碑（比如反复测52天/100天）时用，
+    //     不然测过一次之后 celebratedAnn 里记着，怎么调 debugSetFakeToday 都不会再命中了
+    function debugClearCelebratedAnn() {
+        _rpEnsureSchedulerShape();
+        _data.scheduler.celebratedAnn = [];
+        _save();
+        console.log('[红包] 已清空纪念日庆祝记录，可以重新测里程碑/倒数日命中了');
     }
 
 
@@ -1550,6 +1587,7 @@
         debugForcePartnerCheck: debugForcePartnerCheck,
         debugSchedulerState: debugSchedulerState,
         debugCheckSpecialDay: debugCheckSpecialDay,
+        debugClearCelebratedAnn: debugClearCelebratedAnn,
         debugSetFakeToday: debugSetFakeToday,
         debugClearFakeToday: debugClearFakeToday,
         debugTestReminder: debugTestReminder,

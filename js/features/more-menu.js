@@ -31,7 +31,17 @@
         },
         {
             id: 'continue',
-            iconClass: 'fas fa-ellipsis-h',
+            // 头像居中 + 右上角带三个点的对话气泡，代表"让ta主动说句话"。
+            // 用 svgIcon 而不是 iconClass，因为这是设计好的复合图标，不是字体库里现成的单个符号
+            svgIcon: '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style="width:28px;height:28px;" fill="none">' +
+                '<circle cx="12" cy="10" r="4.3" fill="currentColor"/>' +
+                '<path d="M5.7 21.5c0-4.7 3-7.4 6.3-7.4s6.3 2.7 6.3 7.4" fill="currentColor"/>' +
+                '<rect x="15.8" y="0.8" width="7.1" height="5.3" rx="2.65" fill="none" stroke="currentColor" stroke-width="1.2"/>' +
+                '<path d="M17.8 6.0 17.0 7.3 18.7 6.3" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>' +
+                '<circle cx="17.9" cy="3.45" r="0.65" fill="currentColor"/>' +
+                '<circle cx="19.35" cy="3.45" r="0.65" fill="currentColor"/>' +
+                '<circle cx="20.8" cy="3.45" r="0.65" fill="currentColor"/>' +
+                '</svg>',
             label: '让ta主动',
             ready: true,
             action: function () {
