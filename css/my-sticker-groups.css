@@ -80,6 +80,24 @@
     border-width: 2px;
 }
 .my-sticker-group-chip img { width: 100%; height: 100%; object-fit: cover; }
+/* 压住 iOS Safari 长按图片自带的"存储图像/拷贝"系统菜单和长按选中效果——
+   不加这个的话，长按永远会被系统手势抢走，走不到我们自己的拖拽排序逻辑 */
+.my-sticker-group-chip,
+.my-sticker-group-chip img {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+/* 长按分组头像进入拖拽排序时的抬起反馈——放大+阴影，提示"可以拖了" */
+.my-sticker-group-chip-dragging {
+    position: relative;
+    z-index: 5;
+    transform: scale(1.15);
+    box-shadow: 0 6px 16px rgba(0,0,0,0.28);
+    transition: transform 0.12s ease, box-shadow 0.12s ease;
+    touch-action: none;
+}
 
 /* 长按弹出的小浮窗 */
 .my-sticker-action-popover {
