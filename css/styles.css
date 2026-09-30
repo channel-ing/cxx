@@ -10985,11 +10985,15 @@ body.bottom-collapse-mode #collapse-expand-btn {
     opacity: 0.7;
 }
 
-/* 对方伪语音条下方贴的文字 */
+/* 语音条下方贴的文字——颜色改成继承气泡自己的文字色(inherit)，不再单独写死一个变量。
+   这样气泡皮肤 CSS 直接改 .message-received/.message-sent 的 color 时，
+   这段文字会跟着一起变；用 opacity 做"比正文淡一点"的弱化，而不是另外指定一个颜色，
+   这样不管气泡文字最终是什么颜色，弱化的观感都能保持一致，不会出现文字和气泡对不上的情况 */
 .voice-fake-text {
     margin-top: 4px;
     font-size: 12px;
-    color: var(--text-secondary);
+    color: inherit;
+    opacity: 0.72;
     line-height: 1.5;
     padding: 0 4px;
 }
