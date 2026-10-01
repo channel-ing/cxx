@@ -226,7 +226,13 @@ function initChatActionListeners() {
                         }
                         
                         throttledSaveData();
-                        renderMessages(true);
+                        // 只更新这颗星星按钮本身，不重画整个聊天列表（重画会闪一下）
+                        favoriteBtn.classList.toggle('favorited', !!message.favorited);
+                        favoriteBtn.title = message.favorited ? '取消收藏' : '收藏';
+                        const _starIcon = favoriteBtn.querySelector('i');
+                        if (_starIcon) _starIcon.className = message.favorited ? 'fas fa-star' : 'far fa-star';
+                        // 点完收藏就把长按工具栏收起来（以前靠重画列表顺带收掉，现在要手动收）
+                        _hideAllActions();
                     }
                     return;
                 }
