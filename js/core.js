@@ -1919,6 +1919,17 @@ window.openReactionPicker = function(messageId, anchorEl) {
         window.addReactionToMessage(messageId, emoji);
         _recordRecentReaction(emoji);
         popup.remove();
+        // 用户手动加表情 = 等同于发了一条新消息：走跟发消息一样的回复流程（已读→延迟→正在输入→回复）。
+        // 撤回表情（再点同一个）不算；梦角自动给的表情不走这里，所以也不会触发。
+        const reacted = messages.find(m => m.id === messageId);
+        if (reacted && reacted.reaction && typeof window._triggerDelayedReply === 'function') {
+            // 如果点的是用户自己发的消息，也记进"这一轮"候选池，跟发消息时的处理一致
+            if (reacted.sender === 'user') {
+                window._currentRoundMsgIds = window._currentRoundMsgIds || [];
+                if (window._currentRoundMsgIds.indexOf(reacted.id) === -1) window._currentRoundMsgIds.push(reacted.id);
+            }
+            window._triggerDelayedReply(true);
+        }
     };
 
     // 小面板的列数按"常用反应数量 + 1（"+"号）"来定，不要写死 8 列——不然常用反应数量以后
