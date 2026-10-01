@@ -1708,6 +1708,27 @@ function _recordRecentReaction(emoji) {
     } catch (e) {}
 }
 
+// 原地更新一条消息的反应小标签；成功返回 true，找不到对应节点返回 false 让调用方兜底重画
+function _updateReactionBadgeInPlace(messageId, reaction) {
+    const container = DOMElements && DOMElements.chatContainer;
+    if (!container) return false;
+    const wrapper = container.querySelector('[data-msg-id="' + messageId + '"]');
+    if (!wrapper) return false;
+    const bubbleWrap = wrapper.querySelector('.message-bubble-wrap');
+    if (!bubbleWrap) return false;
+    const old = bubbleWrap.querySelector('.message-reaction-badge');
+    if (old) old.remove();
+    if (reaction) {
+        const badge = document.createElement('div');
+        badge.className = 'message-reaction-badge ' + (_shouldUseCircleBadge(reaction) ? 'reaction-badge-emoji' : 'reaction-badge-kaomoji');
+        badge.textContent = reaction;
+        badge.title = '反应：' + reaction;
+        bubbleWrap.appendChild(badge);
+    }
+    _clampReactionBadges();
+    return true;
+}
+
 // 每条消息最多保留一个反应（不分是谁点的），位置固定跟着这条消息本身的气泡走：
 // 用户发的消息 → 左下角；梦角发的消息 → 右下角（见 CSS .message-wrapper.sent/.received .message-reaction-badge）。
 // 再点一次同一个表情 = 取消反应（气泡上的反应小标签本身也是直接点一下就撤回，走的是同一个函数）。
@@ -1717,7 +1738,11 @@ window.addReactionToMessage = function(messageId, emoji) {
     const isRemoving = message.reaction === emoji;
     message.reaction = isRemoving ? null : emoji;
     throttledSaveData();
-    renderMessages(true);
+    // 只更新这一条消息的反应小标签，不重画整个聊天列表（重画会闪一下、滚动位置还会漂）。
+    // 找不到这条消息的节点（比如不在当前渲染范围内）才退回整体重画。
+    if (!_updateReactionBadgeInPlace(messageId, message.reaction)) {
+        renderMessages(true);
+    }
     // 撤回反应时不放效果，「新加上」一个反应（不管是用户手动点的还是梦角自动给的）才满屏飘——
     // 纯emoji会在气球/礼花/烟花里随机抽一种；颜文字固定只用气球（带毛玻璃胶囊底），不会抽到礼花/烟花
     if (!isRemoving && typeof window.playReactionBurst === 'function') {
