@@ -66,6 +66,18 @@
                 if (typeof toggleBatchMode === 'function') toggleBatchMode();
             }
         },
+        // 占位项，真正的"搞怪"逻辑（右下角道具面板：番茄/鸡蛋/蛋糕/水桶）在
+        // js/features/throw-egg.js 里，它加载后会调用 registerItem('throw-egg', ...)
+        // 把这项升级成真实功能
+        {
+            id: 'throw-egg',
+            // 单色实心小鬼：圆顶身体 + 波浪底边 + 一大一小的眼睛 + 张开的嘴，颜色跟随主题（currentColor）
+            svgIcon: '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style="width:26px;height:26px;" fill="currentColor">' +
+                '<path fill-rule="evenodd" d="M12 2.4C7.9 2.4 4.8 5.6 4.8 9.8V19.8Q6.6 22.6 8.4 19.8T12 19.8T15.6 19.8T19.2 19.8V9.8C19.2 5.6 16.1 2.4 12 2.4ZM9 8.4a1.6 1.6 0 1 0 .01 0ZM15.2 8.9a1.1 1.1 0 1 0 .01 0ZM8.9 13.2Q12 17.6 15.1 13.2Z"/>' +
+                '</svg>',
+            label: '搞怪',
+            ready: false
+        },
         // 加回"位置"和"快问快答"这两个（凑够6个，两行各3个/4个，看起来不那么空），
         // 小红书/抖音还是先不加，功能都没做
         { id: 'location', iconClass: 'fas fa-location-dot', label: '位置', ready: false },

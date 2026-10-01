@@ -280,7 +280,8 @@ autoSendInterval: 5,
         partnerPokeCustomSoundUrl: '',
         soundVolume: 0.15,
         bottomCollapseMode: false,
-        emojiMixEnabled: true
+        emojiMixEnabled: true,
+        autoReactionEnabled: true
             };
         }
 
@@ -1124,12 +1125,13 @@ function manageAutoSendTimer() {
                 '#typing-indicator-toggle': 'typingIndicatorEnabled',
                 '#read-no-reply-toggle': 'allowReadNoReply',
                 '#emoji-mix-toggle': 'emojiMixEnabled',
-                '#auto-send-toggle': 'autoSendEnabled'
+                '#auto-send-toggle': 'autoSendEnabled',
+                '#auto-reaction-toggle': 'autoReactionEnabled'
             };
             for (const [sel, prop] of Object.entries(_pillSyncMap)) {
                 const el = document.querySelector(sel);
                 if (el) {
-                    const val = prop === 'emojiMixEnabled' ? (settings[prop] !== false) : !!settings[prop];
+                    const val = (prop === 'emojiMixEnabled' || prop === 'autoReactionEnabled') ? (settings[prop] !== false) : !!settings[prop];
                     el.classList.toggle('active', val);
                 }
             }
@@ -1368,12 +1370,27 @@ function createMessageFragment(msg, prevMsg, nextMsg, lastSenderRef) {
 
     let actionsHTML = '';
     if (settings.replyEnabled) actionsHTML += `<button class="meta-action-btn reply-btn" title="回复"><i class="fas fa-reply"></i></button>`;
+    actionsHTML += `<button class="meta-action-btn reaction-btn" title="表情回应"><i class="far fa-grin"></i></button>`;
     const starIcon = msg.favorited ? 'fas fa-star' : 'far fa-star';
     actionsHTML += `<button class="meta-action-btn favorite-action-btn ${msg.favorited ? 'favorited' : ''}" title="${msg.favorited ? '取消收藏' : '收藏'}"><i class="${starIcon}"></i></button>`;
     actionsHTML += `<button class="meta-action-btn delete-btn" title="删除"><i class="fas fa-trash-alt"></i></button>`;
     const actionsDiv = document.createElement('div');
     actionsDiv.className = 'message-meta-actions';
     actionsDiv.innerHTML = actionsHTML;
+
+    // ── 消息气泡外包一层不裁切的容器，反应小标签贴在这层上面，而不是贴在 .message 本身。
+    //    .message 为了让自定义气泡皮肤边缘好看，设了 overflow:hidden，标签如果贴在里面、
+    //    又要探出气泡边缘一点，会被这个裁切规则切掉——所以单独包一层。──
+    const bubbleWrap = document.createElement('div');
+    bubbleWrap.className = 'message-bubble-wrap';
+    bubbleWrap.appendChild(messageDiv);
+    if (msg.reaction) {
+        const reactionBadge = document.createElement('div');
+        reactionBadge.className = 'message-reaction-badge ' + (_shouldUseCircleBadge(msg.reaction) ? 'reaction-badge-emoji' : 'reaction-badge-kaomoji');
+        reactionBadge.textContent = msg.reaction;
+        reactionBadge.title = '反应：' + msg.reaction;
+        bubbleWrap.appendChild(reactionBadge);
+    }
 
     let metaHTML = '';
     if (showTimestamp) {
@@ -1421,9 +1438,9 @@ function createMessageFragment(msg, prevMsg, nextMsg, lastSenderRef) {
             }
         }
         metaDiv.innerHTML = metaHTML;
-        contentWrapper.append(actionsDiv, messageDiv, metaDiv);
+        contentWrapper.append(actionsDiv, bubbleWrap, metaDiv);
     } else {
-        contentWrapper.append(actionsDiv, messageDiv);
+        contentWrapper.append(actionsDiv, bubbleWrap);
     }
     wrapper.appendChild(contentWrapper);
     fragment.appendChild(wrapper);
@@ -1511,6 +1528,27 @@ function renderMessages(preserveScroll = false) {
         });
     }
     // window模式下不自动滚动到底部/顶部，滚动位置由调用方（比如跳转定位）自己处理
+    _clampReactionBadges();
+}
+
+// 反应标签默认是居中卡在气泡的左下/右下角的（见 CSS），内容长度正常的话不会跑出屏幕。
+// 但碰上特别长的自定义表情/颜文字，居中之后还是可能有一侧探出屏幕，这里量一下、
+// 超出了就用 --badge-safe-shift 往回拉一点，跟长按工具栏那个安全边距是同一个思路
+function _clampReactionBadges() {
+    requestAnimationFrame(() => {
+        const SAFE_MARGIN = 10;
+        document.querySelectorAll('.message-reaction-badge').forEach(badge => {
+            badge.style.removeProperty('--badge-safe-shift');
+            const rect = badge.getBoundingClientRect();
+            let shift = 0;
+            if (rect.left < SAFE_MARGIN) {
+                shift = SAFE_MARGIN - rect.left;
+            } else if (rect.right > window.innerWidth - SAFE_MARGIN) {
+                shift = (window.innerWidth - SAFE_MARGIN) - rect.right;
+            }
+            if (shift !== 0) badge.style.setProperty('--badge-safe-shift', shift + 'px');
+        });
+    });
 }
 
 // 跳转到某一条消息（搜索结果点击、引用消息点击都可以用这个统一入口），
@@ -1606,6 +1644,330 @@ function _isCaughtUpToLatest() {
     const c = DOMElements && DOMElements.chatContainer;
     if (!c) return true;
     return (c.scrollHeight - c.scrollTop - c.clientHeight) < 100;
+}
+
+// ── 消息反应（emoji reaction）────────────────────────────────────────
+// 常用反应表：长按面板第一行直接展示的 7 个 + 一个"+"号，覆盖日常聊天最常见的几种情绪反馈
+window.COMMON_REACTIONS = ['❤️', '😂', '😲', '😢', '😡', '🥺'];
+
+// "+"展开后的完整表情表（已去重、去掉水果类）
+window.EXTRA_REACTIONS = ['😀','🥲','☺️','😊','😍','🥰','😘','🤨','🧐','🤓','🤩','🥳','🙂‍↕️','😏','😒','🙂‍↔️','😞','😔','🙁','☹️','😫','😢','😭','😡','😑','😠','🤬','🤯','😳','😱','😨','😰','🫣','🤫','🫡','😶','😐','🙄','😯','😧','😲','🥱','🫩','😴','😪','😮‍💨','😵','🤢','🤮','😈','💩','👻','☠️','🫶','🤲🏻','🙌🏻','👏🏻','🤝🏻','👍🏻','👎🏻','👊🏻','✊🏻','✌🏻','🫰🏻','🤟🏻','🫳🏻','👌🏻','🤏🏻','👋🏻','💪🏻','🙏🏻','🖕🏻','👀','🌝','🌚','⭐️','🔥','❄️','🩷','❤️','🧡','💛','💚','🩵','💙','💜','🖤','🩶','🤍','🤎','💔','❤️‍🔥','❤️‍🩹','💕','💓','💗','💖','💘','🉑','❌','❗️','✅','❎','✔️'];
+
+// 判断一个反应是"纯 emoji"（底用圆形）还是"颜文字/自定义拼接表情"（底用现在这种胶囊形）。
+// 做法：把零宽连接符、变体选择符、肤色修饰符这些"合法拼接用的东西"先去掉，
+// 剩下的每个字符如果都落在 Unicode 的"象形符号"范围里，就判定是纯 emoji；
+// 只要有一个不是（比如颜文字里常见的括号、片假名、ಠ_ಠ这种字母符号），就按颜文字处理。
+function _isPureEmoji(str) {
+    if (!str) return false;
+    const stripped = String(str).replace(/[‍️\u{1F3FB}-\u{1F3FF}]/gu, '');
+    if (!stripped) return true;
+    try {
+        return [...stripped].every(ch => /\p{Extended_Pictographic}/u.test(ch));
+    } catch (e) {
+        // 极老的浏览器不支持 \p{} Unicode 属性转义，退化成"看着像颜文字特征字符就不算纯emoji"
+        return !/[()（）<>^_~°òóôõ·ノДД゜ｏ∀o]/.test(stripped);
+    }
+}
+
+// 圆形底只适合"视觉上就是一个符号"的情况——哪怕这一个符号背后是好几个 unicode 码位拼出来的
+// （比如 👍🏻 是"赞"+肤色，❤️‍🔥 是"心"+ZWJ+"火"拼成的一个"燃烧的心"），也还是一个圆能装下。
+// 但如果是两个毫不相干的 emoji 连在一起（比如 😀😂），那是两个独立的字符，塞进固定大小的
+// 圆形会被挤变形/裁掉，这种该走胶囊形。Intl.Segmenter 能准确数出"一段文字里实际有几个
+// 可视字符"，不会把合法拼接出来的一个emoji误数成两个。
+function _shouldUseCircleBadge(str) {
+    if (!_isPureEmoji(str)) return false;
+    try {
+        if (typeof Intl !== 'undefined' && Intl.Segmenter) {
+            const segmenter = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
+            return [...segmenter.segment(str)].length === 1;
+        }
+    } catch (e) {}
+    // 没有 Intl.Segmenter 的老浏览器兜底：按"去掉拼接符之后还剩几个码位"粗略估算，
+    // 不如 Segmenter 精确（遇到复杂合体 emoji 可能会误判成"不止一个"），但能覆盖大部分场景
+    const stripped = String(str).replace(/[‍️\u{1F3FB}-\u{1F3FF}]/gu, '');
+    return [...stripped].length === 1;
+}
+
+const RECENT_REACTIONS_KEY = 'recentReactionEmojis';
+const RECENT_REACTIONS_MAX = 8;
+
+function _getRecentReactions() {
+    try {
+        const raw = localStorage.getItem(RECENT_REACTIONS_KEY);
+        const arr = raw ? JSON.parse(raw) : [];
+        return Array.isArray(arr) ? arr : [];
+    } catch (e) { return []; }
+}
+
+function _recordRecentReaction(emoji) {
+    try {
+        let arr = _getRecentReactions().filter(e => e !== emoji);
+        arr.unshift(emoji);
+        arr = arr.slice(0, RECENT_REACTIONS_MAX);
+        localStorage.setItem(RECENT_REACTIONS_KEY, JSON.stringify(arr));
+    } catch (e) {}
+}
+
+// 每条消息最多保留一个反应（不分是谁点的），位置固定跟着这条消息本身的气泡走：
+// 用户发的消息 → 左下角；梦角发的消息 → 右下角（见 CSS .message-wrapper.sent/.received .message-reaction-badge）。
+// 再点一次同一个表情 = 取消反应（气泡上的反应小标签本身也是直接点一下就撤回，走的是同一个函数）。
+window.addReactionToMessage = function(messageId, emoji) {
+    const message = messages.find(m => m.id === messageId);
+    if (!message) return;
+    const isRemoving = message.reaction === emoji;
+    message.reaction = isRemoving ? null : emoji;
+    throttledSaveData();
+    renderMessages(true);
+    // 撤回反应时不放效果，「新加上」一个反应（不管是用户手动点的还是梦角自动给的）才满屏飘——
+    // 纯emoji会在气球/礼花/烟花里随机抽一种；颜文字固定只用气球（带毛玻璃胶囊底），不会抽到礼花/烟花
+    if (!isRemoving && typeof window.playReactionBurst === 'function') {
+        window.playReactionBurst(emoji);
+    }
+};
+
+// 满屏飘表情的效果：纯emoji（单个）在气球（iMessage风格）/礼花/烟花三种里随机抽一种播放，图个惊喜感；
+// 2个及以上拼在一起的emoji组合，风格仍然随机三选一，但字号和速度收窄一档（原因见 _playReactionBurstBalloon
+// 的注释）；颜文字固定只用气球——字符串长短不一，转/炸的话经常会糊成一团不好看，飘的话配上毛玻璃胶囊底还算清爽。
+// 性能上都只用 transform/opacity 做动画（GPU 合成，不触发重排），DOM 节点一次性用 DocumentFragment
+// 批量插入（只触发一次重排/重绘），纯展示浮层、不挡点击，播完自己整体移除。
+window.playReactionBurst = function(emoji) {
+    if (!emoji) return;
+    try {
+        if (!_isPureEmoji(emoji)) {
+            _playReactionBurstBalloon(emoji, { kaomoji: true });
+            return;
+        }
+        // 是纯emoji，但拆出来不止一个「视觉字符」（比如 😀😂 这种两三个emoji拼在一起）——
+        // 跟单个emoji用同一套字号范围的话，画面上会比单个emoji宽不少，贴着屏幕边缘飘的时候
+        // 容易被切掉一截（跟颜文字同理，只是没那么夸张），所以也收窄一档，但风格还是正常三选一
+        const isCombo = !_shouldUseCircleBadge(emoji);
+        const styles = [_playReactionBurstBalloon, _playReactionBurstConfetti, _playReactionBurstFirework];
+        const pick = styles[Math.floor(Math.random() * styles.length)];
+        pick(emoji, isCombo ? { combo: true } : undefined);
+    } catch (e) {}
+};
+
+// 气球：数量多、大小不一，2.5~4秒内陆续飘完自己消失。
+// 垂直上升和左右摇摆拆成两层独立动画（外层匀速上升 + 内层钟摆式摇摆），避免同一个动画里又要变速
+// 上升又要来回折返方向，折返的瞬间会看起来像"顿一下"；拆开之后每层都是匀速/顺滑的，就不会有停顿感了。
+// opts.kaomoji === true 时是颜文字专用的那一版：整体放慢、字号收窄一些、外面套一层跟消息反应
+// 小标签同款的毛玻璃胶囊底（宽度跟着文字内容自适应撑开），不然裸着一串颜文字飞过去不好认。
+// opts.combo === true 时是多个emoji拼接（非颜文字）：跟颜文字共用同一套「字号收窄+放慢」的参数，
+// 但不加毛玻璃底、风格也还是三选一（上面 playReactionBurst 里已经抽过了），只是传进来已经定好是气球。
+function _playReactionBurstBalloon(emoji, opts) {
+    const isKaomoji = !!(opts && opts.kaomoji);
+    const isSlow = isKaomoji || !!(opts && opts.combo); // 颜文字和emoji组合共用一套收窄参数
+    const COUNT = 28 + Math.floor(Math.random() * 14); // 28~41 个
+    const container = document.createElement('div');
+    container.className = 'reaction-burst-container';
+    const fragment = document.createDocumentFragment();
+    let maxFinish = 0;
+    for (let i = 0; i < COUNT; i++) {
+        const item = document.createElement('div');
+        item.className = 'reaction-burst-item reaction-burst-balloon';
+        const inner = document.createElement('span');
+        inner.className = 'reaction-burst-emoji' + (isKaomoji ? ' reaction-burst-emoji-kaomoji' : '');
+        inner.textContent = emoji;
+        item.appendChild(inner);
+
+        const left = 2 + Math.random() * 96; // vw，铺满全宽
+        const delay = Math.random() * 1.2; // 错开出现时间，不是齐刷刷一起冒出来
+        // 颜文字/emoji组合比单个emoji再放慢一档，字还在飘的时候好歹能看清
+        const riseDuration = isSlow ? (3.6 + Math.random() * 2.0) : (2.6 + Math.random() * 1.6); // 普通2.6~4.2s / 收窄版3.6~5.6s
+        const wobbleDuration = isSlow ? (2.3 + Math.random() * 1.1) : (1.6 + Math.random() * 1.0); // 普通1.6~2.6s / 收窄版2.3~3.4s
+        const wobble = Math.round(14 + Math.random() * 30); // 14~44px 的摇摆幅度
+        // 大小差异拉大：小的多、偶尔冒几个很大的，更有层次感（指数分布让小尺寸更常见）
+        // 颜文字/emoji组合天生就比单个emoji宽，封顶字号调低一点，不然（颜文字）胶囊底会撑得很夸张，
+        // （emoji组合）贴着屏幕边缘飘的时候容易被切掉一截
+        const size = isSlow
+            ? Math.round(13 + Math.pow(Math.random(), 1.8) * 21) // 13~34px
+            : Math.round(14 + Math.pow(Math.random(), 1.8) * 46); // 14~60px
+
+        item.style.left = left + 'vw';
+        item.style.animationDelay = delay.toFixed(2) + 's';
+        item.style.animationDuration = riseDuration.toFixed(2) + 's';
+        item.style.fontSize = size + 'px';
+        inner.style.animationDelay = (Math.random() * wobbleDuration).toFixed(2) + 's'; // 起始相位也随机，摆动不同步
+        inner.style.animationDuration = wobbleDuration.toFixed(2) + 's';
+        inner.style.setProperty('--burst-wobble', wobble + 'px');
+        fragment.appendChild(item);
+        maxFinish = Math.max(maxFinish, delay + riseDuration);
+    }
+    container.appendChild(fragment);
+    document.body.appendChild(container);
+    setTimeout(() => container.remove(), Math.ceil(maxFinish * 1000) + 300);
+}
+
+// 礼花：从顶部密集落下，带旋转，数量多、大小差异明显。opts.combo 见上面气球函数的说明。
+function _playReactionBurstConfetti(emoji, opts) {
+    const isCombo = !!(opts && opts.combo);
+    const COUNT = 40 + Math.floor(Math.random() * 16); // 40~55 个
+    const container = document.createElement('div');
+    container.className = 'reaction-burst-container';
+    const fragment = document.createDocumentFragment();
+    let maxFinish = 0;
+    for (let i = 0; i < COUNT; i++) {
+        const item = document.createElement('div');
+        item.className = 'reaction-burst-item reaction-burst-confetti';
+        item.textContent = emoji;
+
+        const delay = Math.random() * 0.6;
+        const duration = isCombo ? (2.8 + Math.random() * 1.6) : (1.8 + Math.random() * 1.2); // 普通1.8~3.0s / 组合2.8~4.4s
+        const sway = Math.round(Math.random() * 140 - 70);
+        const spin = Math.round(360 + Math.random() * 540);
+        const size = isCombo
+            ? Math.round(12 + Math.pow(Math.random(), 1.6) * 16) // 12~28px
+            : Math.round(12 + Math.pow(Math.random(), 1.6) * 34); // 12~46px
+
+        item.style.left = Math.round(Math.random() * 100) + 'vw';
+        item.style.animationDelay = delay.toFixed(2) + 's';
+        item.style.animationDuration = duration.toFixed(2) + 's';
+        item.style.fontSize = size + 'px';
+        item.style.setProperty('--confetti-sway', sway + 'px');
+        item.style.setProperty('--confetti-spin', spin + 'deg');
+        fragment.appendChild(item);
+        maxFinish = Math.max(maxFinish, delay + duration);
+    }
+    container.appendChild(fragment);
+    document.body.appendChild(container);
+    setTimeout(() => container.remove(), Math.ceil(maxFinish * 1000) + 300);
+}
+
+// 烟花：几个点同时向四周炸开，范围大、速度偏慢，更有冲击力。opts.combo 见上面气球函数的说明。
+function _playReactionBurstFirework(emoji, opts) {
+    const isCombo = !!(opts && opts.combo);
+    const BURST_COUNT = 5;
+    const RAYS = 12;
+    const container = document.createElement('div');
+    container.className = 'reaction-burst-container';
+    const fragment = document.createDocumentFragment();
+    let maxFinish = 0;
+    for (let b = 0; b < BURST_COUNT; b++) {
+        const originX = 10 + Math.random() * 80; // vw
+        const originY = 15 + Math.random() * 50; // vh
+        const burstDelay = b * 0.28 + Math.random() * 0.1;
+        for (let i = 0; i < RAYS; i++) {
+            const angle = (i / RAYS) * Math.PI * 2 + Math.random() * 0.3;
+            const dist = 90 + Math.random() * 70;
+            const duration = isCombo ? (2.4 + Math.random() * 0.9) : (1.4 + Math.random() * 0.5); // 普通1.4~1.9s / 组合2.4~3.3s
+            const size = isCombo
+                ? Math.round(16 + Math.random() * 10) // 16~26px
+                : Math.round(22 + Math.random() * 16); // 22~38px
+
+            const item = document.createElement('div');
+            item.className = 'reaction-burst-item reaction-burst-firework';
+            item.textContent = emoji;
+            item.style.left = originX + 'vw';
+            item.style.top = originY + 'vh';
+            item.style.animationDelay = burstDelay.toFixed(2) + 's';
+            item.style.animationDuration = duration.toFixed(2) + 's';
+            item.style.fontSize = size + 'px';
+            item.style.setProperty('--firework-tx', Math.round(Math.cos(angle) * dist) + 'px');
+            item.style.setProperty('--firework-ty', Math.round(Math.sin(angle) * dist) + 'px');
+            fragment.appendChild(item);
+            maxFinish = Math.max(maxFinish, burstDelay + duration);
+        }
+    }
+    container.appendChild(fragment);
+    document.body.appendChild(container);
+    setTimeout(() => container.remove(), Math.ceil(maxFinish * 1000) + 300);
+}
+
+function _buildReactionGridItem(emoji, onPick) {
+    const item = document.createElement('div');
+    item.className = 'reaction-picker-item';
+    item.textContent = emoji;
+    item.addEventListener('click', () => onPick(emoji));
+    return item;
+}
+
+// 长按工具栏里点击"表情回应"弹出的小面板：常用 7 个 + "+"号；点"+"展开完整表情表（含"最近使用"）
+window.openReactionPicker = function(messageId, anchorEl) {
+    const existing = document.getElementById('reaction-picker-popup');
+    if (existing) existing.remove();
+
+    const popup = document.createElement('div');
+    popup.id = 'reaction-picker-popup';
+    popup.className = 'reaction-picker-popup';
+
+    const pick = (emoji) => {
+        window.addReactionToMessage(messageId, emoji);
+        _recordRecentReaction(emoji);
+        popup.remove();
+    };
+
+    // 小面板的列数按"常用反应数量 + 1（"+"号）"来定，不要写死 8 列——不然常用反应数量以后
+    // 再调（比如这次从 7 个减到 6 个），列数和实际格子数对不上，最后会空出一截不上不下的缺口
+    popup.style.gridTemplateColumns = `repeat(${window.COMMON_REACTIONS.length + 1}, 34px)`;
+
+    window.COMMON_REACTIONS.forEach(emoji => popup.appendChild(_buildReactionGridItem(emoji, pick)));
+
+    const moreBtn = document.createElement('div');
+    moreBtn.className = 'reaction-picker-item reaction-picker-more';
+    moreBtn.innerHTML = '<i class="fas fa-plus"></i>';
+    moreBtn.title = '更多表情';
+    moreBtn.addEventListener('click', () => {
+        popup.classList.add('reaction-picker-popup-expanded');
+        popup.style.gridTemplateColumns = 'repeat(8, 34px)'; // 完整表情表固定按 8 列铺开
+        popup.innerHTML = '';
+
+        const recent = _getRecentReactions();
+        if (recent.length > 0) {
+            const label = document.createElement('div');
+            label.className = 'reaction-picker-section-label';
+            label.textContent = '最近使用';
+            popup.appendChild(label);
+            recent.forEach(emoji => popup.appendChild(_buildReactionGridItem(emoji, pick)));
+            const sep = document.createElement('div');
+            sep.className = 'reaction-picker-section-label';
+            sep.textContent = '全部';
+            popup.appendChild(sep);
+        }
+
+        window.EXTRA_REACTIONS.forEach(emoji => popup.appendChild(_buildReactionGridItem(emoji, pick)));
+
+        // 内容变多了，重新定位一次，避免还按原来那个小面板的尺寸算，导致超出屏幕
+        _repositionReactionPicker(popup, anchorEl);
+    });
+    popup.appendChild(moreBtn);
+
+    document.body.appendChild(popup);
+
+    _repositionReactionPicker(popup, anchorEl);
+
+    setTimeout(() => {
+        document.addEventListener('click', function handler(e) {
+            // 用 composedPath 而不是 popup.contains(e.target)：点"+"之后会清空面板内容重新渲染，
+            // 原来被点击的那个节点（比如"+"上的图标）在这次点击冒泡到 document 之前就已经从页面上
+            // 被移除了，这时候 popup.contains(e.target) 永远是 false（哪怕明明点在面板里），
+            // 会把刚展开的完整表情表立刻关掉。composedPath() 拿到的是点击发生那一刻的真实路径，
+            // 不受后续 DOM 变化影响，不会有这个问题。
+            const path = typeof e.composedPath === 'function' ? e.composedPath() : [];
+            const clickedInsidePopup = path.includes(popup);
+            if (!clickedInsidePopup && e.target !== anchorEl && !anchorEl.contains(e.target)) {
+                popup.remove();
+                document.removeEventListener('click', handler);
+            }
+        });
+    }, 0);
+};
+
+// 定位在触发按钮附近，并保证不会贴着屏幕边缘（留安全边距）；展开成完整表情表之后内容变多了，
+// 也会重新调一次，避免还按小面板的尺寸算，导致超出屏幕
+function _repositionReactionPicker(popup, anchorEl) {
+    const SAFE_MARGIN = 10;
+    const rect = anchorEl.getBoundingClientRect();
+    const popupRect = popup.getBoundingClientRect();
+    let left = rect.left + rect.width / 2 - popupRect.width / 2;
+    left = Math.max(SAFE_MARGIN, Math.min(left, window.innerWidth - popupRect.width - SAFE_MARGIN));
+    let top = rect.top - popupRect.height - 8;
+    if (top < SAFE_MARGIN) top = rect.bottom + 8;
+    if (top + popupRect.height > window.innerHeight - SAFE_MARGIN) {
+        top = Math.max(SAFE_MARGIN, window.innerHeight - SAFE_MARGIN - popupRect.height);
+    }
+    if (top < SAFE_MARGIN) top = SAFE_MARGIN; // 面板本身比屏幕还高时，至少贴顶，靠自身滚动条处理溢出
+    popup.style.left = left + 'px';
+    popup.style.top = top + 'px';
 }
 
 const addMessage = (message) => {
@@ -1894,6 +2256,13 @@ const addMessage = (message) => {
                     if (typeof showNotification === 'function') showNotification('✦ 强制触发对方拍一拍', 'info', 1800);
                     return;
                 }
+                if (cmd === '/测试搞怪' || cmd === '/testthrow') {
+                    DOMElements.messageInput.value = '';
+                    _syncMessageInputHeight();
+                    if (window.ThrowEgg && typeof window.ThrowEgg.partnerThrow === 'function') window.ThrowEgg.partnerThrow();
+                    if (typeof showNotification === 'function') showNotification('✦ 强制触发对方搞怪', 'info', 1800);
+                    return;
+                }
                 if (cmd === '/测试状态更新' || cmd === '/teststatus') {
                     DOMElements.messageInput.value = '';
                     _syncMessageInputHeight();
@@ -1925,6 +2294,11 @@ const addMessage = (message) => {
                 if (type === 'system') messageData.sender = null;
 
                 addMessage(messageData);
+                if (type !== 'system' && messageData.sender === 'user') {
+                    // 记录进"这一轮"候选池，供梦角自动表情反应使用（见 _triggerDelayedReply / simulateReply）
+                    window._currentRoundMsgIds = window._currentRoundMsgIds || [];
+                    window._currentRoundMsgIds.push(messageData.id);
+                }
                 if (type !== 'system') playSound('send');
                 currentReplyTo = null;
                 updateReplyPreview();
@@ -2027,9 +2401,12 @@ if (!isBatchMode && type === 'normal') {
             showNotification(`正在发送 ${batchMessages.length} 条消息...`, 'info', 2000);
             batchMessages.forEach((msg, index) => {
                 setTimeout(() => {
+                    const batchMsgId = Date.now() + index;
                     addMessage({
-                        id: Date.now() + index, sender: 'user', text: msg.text || '', image: msg.image || null, timestamp: new Date(), status: 'sent', favorited: false, type: 'normal'
+                        id: batchMsgId, sender: 'user', text: msg.text || '', image: msg.image || null, timestamp: new Date(), status: 'sent', favorited: false, type: 'normal'
                     });
+                    window._currentRoundMsgIds = window._currentRoundMsgIds || [];
+                    window._currentRoundMsgIds.push(batchMsgId);
                     playSound('send');
                 }, index * 300);
             });
@@ -2177,11 +2554,18 @@ if (partnerPersonas && partnerPersonas.length > 0 && Math.random() < 0.3) {
                      throttledSaveData();
                 }
             }
-            if (Math.random() < 0.03) {
-                // ── 对方拍一拍：调用提取的通用函数（同时供 /测试拍一拍 指令使用）──
+            // ── 对方拍一拍 和 梦角搞怪：两套判定各掷各的骰子（各 3%），互不排斥，
+            //    有可能同一次同时出现；只要其中任何一个触发了，这次就不再走普通回复 ──
+            const _doPoke = Math.random() < 0.03;
+            const _doThrow = Math.random() < 0.03 && window.ThrowEgg && typeof window.ThrowEgg.partnerThrow === 'function';
+            if (_doPoke) {
+                // 调用提取的通用函数（同时供 /测试拍一拍 指令使用）
                 if (typeof window._triggerPartnerPoke === 'function') window._triggerPartnerPoke();
-                return;
             }
+            if (_doThrow) {
+                window.ThrowEgg.partnerThrow();
+            }
+            if (_doPoke || _doThrow) return;
 
             // ── 梦角主动发红包：跟上面拍一拍是完全独立的两套判定，互不影响——
             // 不 return，不影响这次正常回复照常生成；异步调用，不 await，不拖慢/阻塞回复流程，
@@ -2224,6 +2608,24 @@ if (partnerPersonas && partnerPersonas.length > 0 && Math.random() < 0.3) {
             const recentUserMsgs = (settings.replyEnabled && !window._companionSilentTrigger)
                 ? messages.filter(m => m.sender === 'user' && m.text).slice(-10)
                 : [];
+
+            // ── 梦角自动表情反应：候选池只取"这一轮"（上次回复之后用户连续发的消息），
+            //    跟引用回复、表情混入消息都是各自独立摇骰子，互不影响 ──
+            const roundCandidateIds = (window._currentRoundMsgIds || []).slice();
+            window._currentRoundMsgIds = []; // 这一轮即将被回复，清空计数，下一次发消息重新算一轮
+            if (settings.autoReactionEnabled !== false && !window._companionSilentTrigger && roundCandidateIds.length > 0 && Math.random() < 0.2) {
+                if (!customEmojis || customEmojis.length === 0) {
+                    showNotification('自定义 Emoji 库为空，梦角暂时没法给消息加反应', 'info', 3000);
+                } else {
+                    const targetId = roundCandidateIds[Math.floor(Math.random() * roundCandidateIds.length)];
+                    const targetMsg = messages.find(m => m.id === targetId);
+                    if (targetMsg && typeof window.addReactionToMessage === 'function') {
+                        const emoji = customEmojis[Math.floor(Math.random() * customEmojis.length)];
+                        window.addReactionToMessage(targetId, emoji);
+                    }
+                }
+            }
+
             for (let i = 0; i < replyCount; i++) {
                 const delayRange = settings.replyDelayMax - settings.replyDelayMin;
                 delay += settings.replyDelayMin + Math.random() * delayRange;

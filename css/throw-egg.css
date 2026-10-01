@@ -1,0 +1,76 @@
+/* ============================================================
+   搞怪（扔番茄/鸡蛋/蛋糕/泼水）—— 配合 js/features/throw-egg.js
+   - #throw-fx-layer：全屏透明层，飞行中的角色画在这里，不挡点击
+   - .throw-fx-panel：右下角的道具面板（四个图标 + 关闭按钮）
+   ============================================================ */
+
+#throw-fx-layer {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 9999;
+    overflow: hidden;
+}
+.throw-char-svg {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 80px;
+    height: 80px;
+    overflow: visible;
+}
+
+.throw-fx-panel {
+    position: fixed;
+    right: 12px;
+    z-index: 9998;
+    padding: 10px 10px 10px;
+    background: var(--secondary-bg, #fff);
+    border: 1px solid var(--border-color, rgba(0, 0, 0, 0.08));
+    border-radius: 18px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16);
+}
+.throw-fx-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 56px);
+    gap: 8px;
+}
+.throw-fx-item {
+    width: 56px;
+    height: 56px;
+    padding: 6px;
+    border: none;
+    border-radius: 14px;
+    background: var(--primary-bg, #f5f5f5);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    -webkit-tap-highlight-color: transparent;
+}
+.throw-fx-item:hover {
+    background: rgba(var(--accent-color-rgb, 7, 193, 96), 0.12);
+}
+/* 图标里的角色：用面板里的尺寸，覆盖掉飞行用的绝对定位 */
+.throw-fx-item .throw-char-svg {
+    position: static;
+    width: 44px;
+    height: 44px;
+}
+.throw-fx-close {
+    position: absolute;
+    top: -9px;
+    right: -9px;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    border: 1px solid var(--border-color, rgba(0, 0, 0, 0.08));
+    background: var(--secondary-bg, #fff);
+    color: var(--text-secondary, #888);
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
+}

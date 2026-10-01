@@ -30,6 +30,7 @@
     <link rel="stylesheet" href="css/global-msg-banner.css">
     <link rel="stylesheet" href="css/survey.css">
     <link rel="stylesheet" href="css/more-menu.css">
+    <link rel="stylesheet" href="css/throw-egg.css">
     <link rel="stylesheet" href="css/redpacket.css">
 
     <style id="css-live-preview-style"></style>
@@ -2129,6 +2130,11 @@ html[data-theme="dark"] #cs-transition-overlay{background:radial-gradient(circle
                             <span class="setting-pill-label">表情混入消息 <span style="font-size:11px;color:var(--text-secondary);font-weight:400;">开启后表情与文字同条发送</span></span>
                             <div class="setting-pill-switch"><div class="setting-pill-knob"></div></div>
                         </div>
+                        <div class="setting-pill-row" id="auto-reaction-toggle" style="border-top:1px solid var(--border-color);">
+                            <span class="setting-pill-icon"><i class="far fa-grin-hearts"></i></span>
+                            <span class="setting-pill-label">表情反应 <span style="font-size:11px;color:var(--text-secondary);font-weight:400;">开启后ta有概率对你的消息做出emoji反应</span></span>
+                            <div class="setting-pill-switch"><div class="setting-pill-knob"></div></div>
+                        </div>
                         <div class="setting-pill-row" id="combine-cards-toggle" style="border-top:1px solid var(--border-color);">
                             <span class="setting-pill-icon"><i class="fas fa-layer-group"></i></span>
                             <span class="setting-pill-label">回复拼接字卡 <span style="font-size:11px;color:var(--text-secondary);font-weight:400;">开启后单条消息有概率拼接多张字卡</span></span>
@@ -3713,6 +3719,8 @@ html[data-theme="dark"] #cs-transition-overlay{background:radial-gradient(circle
     <script src="js/features/global-msg-banner.js"></script>
     <script src="js/features/survey.js"></script>
     <script src="js/features/more-menu.js"></script>
+    <script src="js/vendor/gsap.min.js"></script>
+    <script src="js/features/throw-egg.js"></script>
     <script src="js/features/redpacket.js"></script>
 <!-- 相册图片详情（全屏） -->
 <div id="al-view-detail" style="display:none;position:fixed;inset:0;z-index:6000;background:#000;flex-direction:column;">

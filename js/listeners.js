@@ -30,6 +30,27 @@ function initChatActionListeners() {
             function _hideAllActions() {
                 document.querySelectorAll('.message-wrapper.actions-visible').forEach(w => {
                     w.classList.remove('actions-visible');
+                    const bar = w.querySelector('.message-meta-actions');
+                    if (bar) bar.style.removeProperty('--safe-shift');
+                });
+            }
+
+            // 工具栏贴着气泡定位，如果气泡靠近屏幕边缘，工具栏可能被切掉一截——
+            // 这里测量一下工具栏实际渲染的位置，超出安全边距就用 --safe-shift 把它推回来
+            function _clampActionsToolbar(wrapper) {
+                const bar = wrapper.querySelector('.message-meta-actions');
+                if (!bar) return;
+                bar.style.removeProperty('--safe-shift');
+                requestAnimationFrame(() => {
+                    const SAFE_MARGIN = 10;
+                    const rect = bar.getBoundingClientRect();
+                    let shift = 0;
+                    if (rect.left < SAFE_MARGIN) {
+                        shift = SAFE_MARGIN - rect.left;
+                    } else if (rect.right > window.innerWidth - SAFE_MARGIN) {
+                        shift = (window.innerWidth - SAFE_MARGIN) - rect.right;
+                    }
+                    if (shift !== 0) bar.style.setProperty('--safe-shift', shift + 'px');
                 });
             }
 
@@ -43,6 +64,7 @@ function initChatActionListeners() {
                     _longPressTriggered = true;
                     _hideAllActions();
                     wrapper.classList.add('actions-visible');
+                    _clampActionsToolbar(wrapper);
                     // 阻止文字选中
                     if (window.getSelection) window.getSelection().removeAllRanges();
                     // 触觉反馈
@@ -64,6 +86,23 @@ function initChatActionListeners() {
             document.addEventListener('click', (e) => {
                 if (!e.target.closest('.message-wrapper')) {
                     _hideAllActions();
+                }
+            });
+
+            // ── 点一下气泡上的反应小标签直接撤回（方案A）──────────────────────
+            // 反应标签是贴在气泡外面那层 .message-bubble-wrap 上的（跟语音条/红包/图片/表情包
+            // 不是同一个节点、也不是它们的子节点），所以这里不会跟那些气泡自己的点击逻辑冲突；
+            // 多加一道 stopPropagation 纯粹是保险，防止以后别处加了更上层的点击监听
+            DOMElements.chatContainer.addEventListener('click', (e) => {
+                const badge = e.target.closest('.message-reaction-badge');
+                if (!badge) return;
+                e.stopPropagation();
+                const wrapper = badge.closest('.message-wrapper');
+                if (!wrapper) return;
+                const messageId = Number(wrapper.dataset.id);
+                const message = messages.find(m => m.id === messageId);
+                if (message && message.reaction && typeof window.addReactionToMessage === 'function') {
+                    window.addReactionToMessage(messageId, message.reaction);
                 }
             });
 
@@ -202,6 +241,12 @@ function initChatActionListeners() {
                 const message = messages.find(m => m.id === messageId);
                 if (!message) return;
 
+if (target.classList.contains('reaction-btn')) {
+    if (typeof window.openReactionPicker === 'function') {
+        window.openReactionPicker(messageId, target);
+    }
+    return;
+}
 if (target.classList.contains('delete-btn')) {
     if (confirm('确定要删除这条消息吗？')) {
         const index = messages.findIndex(m => m.id === messageId);
@@ -572,11 +617,12 @@ if (_chatSettingsEl) _chatSettingsEl.addEventListener('click', () => {
         '#read-receipts-toggle': { prop: 'readReceiptsEnabled', name: '已读回执' },
         '#typing-indicator-toggle': { prop: 'typingIndicatorEnabled', name: '正在输入' },
         '#read-no-reply-toggle': { prop: 'allowReadNoReply', name: '已读不回' },
-        '#emoji-mix-toggle': { prop: 'emojiMixEnabled', name: '表情消息' }
+        '#emoji-mix-toggle': { prop: 'emojiMixEnabled', name: '表情消息' },
+        '#auto-reaction-toggle': { prop: 'autoReactionEnabled', name: '表情反应' }
     };
     for (const [selector, { prop }] of Object.entries(toggleSyncMap)) {
         const el = document.querySelector(selector);
-        const val = prop === 'emojiMixEnabled' ? (settings[prop] !== false) : !!settings[prop];
+        const val = (prop === 'emojiMixEnabled' || prop === 'autoReactionEnabled') ? (settings[prop] !== false) : !!settings[prop];
         if (el) el.classList.toggle('active', val);
     }
     const svSlider = document.getElementById('sound-volume-slider');
@@ -1572,6 +1618,22 @@ combineCardsSlider.addEventListener('input', (e) => {
     combineCardsValue.textContent = `${val}句`;
 });
 combineCardsSlider.addEventListener('change', throttledSaveData);
+
+const autoReactionToggle = document.getElementById('auto-reaction-toggle');
+if (autoReactionToggle) {
+    autoReactionToggle.classList.toggle('active', settings.autoReactionEnabled !== false);
+    autoReactionToggle.addEventListener('click', () => {
+        settings.autoReactionEnabled = !(settings.autoReactionEnabled !== false);
+        autoReactionToggle.classList.toggle('active', settings.autoReactionEnabled !== false);
+        if (typeof saveData === 'function') {
+            try {
+                const p = saveData();
+                if (p && typeof p.catch === 'function') p.catch(e => console.error('[表情反应] 保存失败:', e));
+            } catch (e) { console.error('[表情反应] 保存失败:', e); }
+        }
+        showNotification(`表情反应已${settings.autoReactionEnabled !== false ? '开启' : '关闭'}`, 'success');
+    });
+}
 
 autoSendSlider.addEventListener('change', () => {
     manageAutoSendTimer(); 
