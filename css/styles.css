@@ -1092,13 +1092,14 @@
         /* 绾� emoji锛堜笉鍚嫭鍙�/瀛楁瘝杩欎簺棰滄枃瀛楃壒寰佸瓧绗︼級鐢ㄥ渾褰㈠簳锛岄鏂囧瓧/鑷畾涔夋嫾鎺ヨ〃鎯�
            杩樻槸鐢ㄤ笂闈㈤偅绉嶈兌鍥婂舰鈥斺€斿渾褰㈠簳瀹介珮鍐欐銆佷笉闅忓唴瀹规拺寮€锛屾墍浠ュ彧缁欑湡鐨勫彧鏈変竴涓や釜瀛楃鐨�
            emoji 鐢紱棰滄枃瀛楁櫘閬嶆瘮杈冮暱锛岀‖濂楀渾褰細鎶婂唴瀹规尋鍙樺舰锛屾墍浠ョ户缁蛋鑳跺泭褰㈣嚜閫傚簲瀹藉害 */
-        .message-reaction-badge.reaction-badge-emoji {
-            width: 26px;
-            height: 26px;
-            padding: 0;
-            border-radius: 50%;
-            font-size: 15px;
-        }
+            .message-reaction-badge.reaction-badge-emoji {
+                width: 26px;
+                height: 26px;
+                padding: 0;
+                border-radius: 50%;
+                font-size: 15px;
+                background-color: color-mix(in srgb, var(--secondary-bg) 35%, transparent);
+            }
         /* 鐐瑰嚮鐑尯姣旇倝鐪肩湅鍒扮殑鑳跺泭鑼冨洿鍐嶅ぇ涓€鍦堬紙寰€澶栨墿6px锛夛紝杩欐牱鎵嬫寚鐐圭殑鏃跺€欏懡涓巼鏇撮珮锛�
            涓嶅鏄撳洜涓哄樊涓€鐐圭偣灏辨紡鐐瑰埌涓嬮潰鐨勬皵娉★紙璇煶鏉�/绾㈠寘/鍥剧墖/琛ㄦ儏鍖咃級涓� */
         .message-reaction-badge::before {
