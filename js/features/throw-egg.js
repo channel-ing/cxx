@@ -472,6 +472,19 @@
     const fromEl = nearestChatAvatar('received', 'partner-avatar');
     const toEl = nearestChatAvatar('sent', 'my-avatar');
     const done = function () { shake(toEl); recordThrow('partner', item); };
+    // 用户不在主聊天页（后台/锁屏、弹窗、情侣空间、陪伴页……）：不播动画，直接记一条记录并提示——
+    // 动画是飞到聊天头像上的，不在聊天页看不到；后台标签页的动画帧还会被浏览器暂停，
+    // done 回调要等回到页面才触发，记录和通知都会被拖住
+    const away = (typeof window._isAwayFromChat === 'function') ? window._isAwayFromChat() : document.hidden;
+    if (away) {
+      recordThrow('partner', item);
+      const lastMsg = getMessages()[getMessages().length - 1];
+      const tip = item.id === 'bucket' ? '向你泼了水' : '向你扔了一个' + item.name;
+      if (typeof window._notifyPartnerEvent === 'function') {
+        window._notifyPartnerEvent(tip, lastMsg ? lastMsg.id : null);
+      }
+      return;
+    }
     if (!fromEl || !toEl || toEl.getBoundingClientRect().width === 0) { done(); return; }
     playSequence(item.id, centerOf(fromEl), aimPoint(toEl, item.id, 'left'), done);
   }

@@ -488,7 +488,7 @@ function showEmojiTab() {
         }
         item.onclick = () => {
             if (isBatchMode) {
-                batchMessages.push({ id: Date.now() + batchMessages.length, text: '', image: src });
+                batchMessages.push({ id: Date.now() + batchMessages.length, text: '', image: src, isSticker: true });
                 updateBatchPreview();
                 showNotification('已添加到批量发送', 'success', 1200);
             } else {
@@ -498,6 +498,7 @@ function showEmojiTab() {
                     text: '',
                     timestamp: new Date(),
                     image: src,
+                    isSticker: true,
                     status: 'sent',
                     type: 'normal'
                 });

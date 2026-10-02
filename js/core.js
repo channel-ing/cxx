@@ -1209,6 +1209,7 @@ function createMessageFragment(msg, prevMsg, nextMsg, lastSenderRef) {
     if (msg.type === 'system') {
         const systemMsgDiv = document.createElement('div');
         systemMsgDiv.className = 'system-message';
+        systemMsgDiv.dataset.msgId = msg.id; // 让"跳转到某条消息"能定位到拍一拍这类系统消息
         systemMsgDiv.innerHTML = msg.text;
         fragment.appendChild(systemMsgDiv);
         lastSenderRef.current = 'system';
@@ -1219,6 +1220,7 @@ function createMessageFragment(msg, prevMsg, nextMsg, lastSenderRef) {
         const callEvDiv = document.createElement('div');
         callEvDiv.className = 'call-event-message';
         callEvDiv.dataset.id = msg.id;
+        callEvDiv.dataset.msgId = msg.id; // 让"跳转到某条消息"能定位到搞怪/通话记录
         const icon = msg.callIcon || 'fa-video';
         // 红色样式：通话拒绝/未接 + 陪伴拒绝/错过/取消
         const isRejected = icon === 'fa-phone-slash' ||
@@ -1317,7 +1319,7 @@ function createMessageFragment(msg, prevMsg, nextMsg, lastSenderRef) {
 
     let messageHTML = '';
     if (msg.replyTo) {
-        const repliedText = msg.replyTo.text || (msg.replyTo.voice ? `语音 ${msg.replyTo.voice.duration || 0}"` : (msg.replyTo.image ? '🖼 图片' : '[消息]'));
+        const repliedText = msg.replyTo.text || window._quotePreviewLabel(msg.replyTo);
         const repliedSender = msg.replyTo.sender === 'user' ? (settings.myName || '我') : (settings.partnerName || '对方');
         messageHTML += `<div class="reply-indicator" data-reply-id="${msg.replyTo.id || ''}" style="cursor:pointer;" onclick="scrollToQuotedMessage(this)"><span class="reply-indicator-sender">${repliedSender}</span><span class="reply-indicator-text">${repliedText}</span></div>`;
     }
@@ -1708,6 +1710,32 @@ function _recordRecentReaction(emoji) {
     } catch (e) {}
 }
 
+// 引用（回复）一条没有文字的消息时，引用条里显示的文案：
+// 红包 → [红包]；语音 → 语音 N"；表情包 → [表情]；真正的图片 → [图片]；其他（通话记录等）→ [消息]。
+// 优先去聊天记录里按 id 找到原消息来判断（引用条里只存了 id/发送者/文字，没存类型）；找不到原消息再用引用条里带的字段。
+// 梦角发的图片只有表情包这一种来源；用户发的图片要看它是不是在"我的表情库"里，是就算表情包。
+window._quotePreviewLabel = function (q) {
+    if (!q) return '[消息]';
+    const orig = (typeof messages !== 'undefined' && Array.isArray(messages))
+        ? (messages.find(function (m) { return String(m.id) === String(q.id); }) || q)
+        : q;
+    if (orig.type === 'redpacket') return '[红包]';
+    if (orig.voice) return '语音 ' + (orig.voice.duration || 0) + '"';
+    if (orig.image) {
+        // 新消息发出时带 isSticker 标记，最准；老消息没有标记，就按下面的规则判断
+        if (orig.isSticker) return '[表情]';
+        if (orig.sender !== 'user') return '[表情]';
+        // 老的、没有标记的用户消息：看这张图在不在表情库里（我的表情库的条目是 {src,...} 对象，梦角表情库是字符串）
+        const inLib = function (lib) {
+            return Array.isArray(lib) && lib.some(function (e) { return (e && typeof e === 'object' ? e.src : e) === orig.image; });
+        };
+        const mine = (typeof myStickerLibrary !== 'undefined') ? myStickerLibrary : [];
+        const theirs = (typeof stickerLibrary !== 'undefined') ? stickerLibrary : [];
+        return (inLib(mine) || inLib(theirs)) ? '[表情]' : '[图片]';
+    }
+    return '[消息]';
+};
+
 // 原地更新一条消息的反应小标签；成功返回 true，找不到对应节点返回 false 让调用方兜底重画
 function _updateReactionBadgeInPlace(messageId, reaction) {
     const container = DOMElements && DOMElements.chatContainer;
@@ -1745,7 +1773,10 @@ window.addReactionToMessage = function(messageId, emoji) {
     }
     // 撤回反应时不放效果，「新加上」一个反应（不管是用户手动点的还是梦角自动给的）才满屏飘——
     // 纯emoji会在气球/礼花/烟花里随机抽一种；颜文字固定只用气球（带毛玻璃胶囊底），不会抽到礼花/烟花
-    if (!isRemoving && typeof window.playReactionBurst === 'function') {
+    // 满屏飘的效果只在主聊天页播：用户在弹窗/情侣空间/陪伴页/电影院或页面在后台时跳过，
+    // 不然会盖在别的页面上面飘（标签小标签本身已经更新了，回到聊天页就能看到）
+    const _awayFromChat = (typeof window._isAwayFromChat === 'function') ? window._isAwayFromChat() : false;
+    if (!isRemoving && !_awayFromChat && typeof window.playReactionBurst === 'function') {
         window.playReactionBurst(emoji);
     }
 };
@@ -1782,7 +1813,10 @@ window.playReactionBurst = function(emoji) {
 function _playReactionBurstBalloon(emoji, opts) {
     const isKaomoji = !!(opts && opts.kaomoji);
     const isSlow = isKaomoji || !!(opts && opts.combo); // 颜文字和emoji组合共用一套收窄参数
-    const COUNT = 28 + Math.floor(Math.random() * 14); // 28~41 个
+    // 速度倍数（越大越慢）：单个/多个 emoji 比原来慢 1.6 倍，眼睛不容易累；颜文字速度保持原样。
+    // 数量：颜文字只放原来的 70%；emoji 数量不变。
+    const SPEED = isKaomoji ? 1 : 1.6;
+    const COUNT = Math.max(6, Math.round((28 + Math.floor(Math.random() * 14)) * (isKaomoji ? 0.7 : 1))); // 28~41 个（颜文字 ×0.7）
     const container = document.createElement('div');
     container.className = 'reaction-burst-container';
     const fragment = document.createDocumentFragment();
@@ -1796,10 +1830,10 @@ function _playReactionBurstBalloon(emoji, opts) {
         item.appendChild(inner);
 
         const left = 2 + Math.random() * 96; // vw，铺满全宽
-        const delay = Math.random() * 1.2; // 错开出现时间，不是齐刷刷一起冒出来
+        const delay = Math.random() * 1.2 * SPEED; // 错开出现时间，不是齐刷刷一起冒出来
         // 颜文字/emoji组合比单个emoji再放慢一档，字还在飘的时候好歹能看清
-        const riseDuration = isSlow ? (3.6 + Math.random() * 2.0) : (2.6 + Math.random() * 1.6); // 普通2.6~4.2s / 收窄版3.6~5.6s
-        const wobbleDuration = isSlow ? (2.3 + Math.random() * 1.1) : (1.6 + Math.random() * 1.0); // 普通1.6~2.6s / 收窄版2.3~3.4s
+        const riseDuration = (isSlow ? (3.6 + Math.random() * 2.0) : (2.6 + Math.random() * 1.6)) * SPEED; // 原速：普通2.6~4.2s / 收窄版3.6~5.6s，再乘 SPEED
+        const wobbleDuration = (isSlow ? (2.3 + Math.random() * 1.1) : (1.6 + Math.random() * 1.0)) * SPEED; // 原速：普通1.6~2.6s / 收窄版2.3~3.4s，再乘 SPEED
         const wobble = Math.round(14 + Math.random() * 30); // 14~44px 的摇摆幅度
         // 大小差异拉大：小的多、偶尔冒几个很大的，更有层次感（指数分布让小尺寸更常见）
         // 颜文字/emoji组合天生就比单个emoji宽，封顶字号调低一点，不然（颜文字）胶囊底会撑得很夸张，
@@ -1826,6 +1860,7 @@ function _playReactionBurstBalloon(emoji, opts) {
 // 礼花：从顶部密集落下，带旋转，数量多、大小差异明显。opts.combo 见上面气球函数的说明。
 function _playReactionBurstConfetti(emoji, opts) {
     const isCombo = !!(opts && opts.combo);
+    const SPEED = 1.6; // 比原来慢 1.6 倍（旋转总角度不变，时长拉长后转得更慢）；数量不变
     const COUNT = 40 + Math.floor(Math.random() * 16); // 40~55 个
     const container = document.createElement('div');
     container.className = 'reaction-burst-container';
@@ -1836,8 +1871,8 @@ function _playReactionBurstConfetti(emoji, opts) {
         item.className = 'reaction-burst-item reaction-burst-confetti';
         item.textContent = emoji;
 
-        const delay = Math.random() * 0.6;
-        const duration = isCombo ? (2.8 + Math.random() * 1.6) : (1.8 + Math.random() * 1.2); // 普通1.8~3.0s / 组合2.8~4.4s
+        const delay = Math.random() * 0.6 * SPEED;
+        const duration = (isCombo ? (2.8 + Math.random() * 1.6) : (1.8 + Math.random() * 1.2)) * SPEED; // 原速：普通1.8~3.0s / 组合2.8~4.4s，再乘 SPEED
         const sway = Math.round(Math.random() * 140 - 70);
         const spin = Math.round(360 + Math.random() * 540);
         const size = isCombo
@@ -1847,6 +1882,7 @@ function _playReactionBurstConfetti(emoji, opts) {
         item.style.left = Math.round(Math.random() * 100) + 'vw';
         item.style.animationDelay = delay.toFixed(2) + 's';
         item.style.animationDuration = duration.toFixed(2) + 's';
+        item.style.animationTimingFunction = 'linear'; // 匀速下落：原来的 ease-in 越落越快，末尾那一下最晃眼
         item.style.fontSize = size + 'px';
         item.style.setProperty('--confetti-sway', sway + 'px');
         item.style.setProperty('--confetti-spin', spin + 'deg');
@@ -1861,6 +1897,7 @@ function _playReactionBurstConfetti(emoji, opts) {
 // 烟花：几个点同时向四周炸开，范围大、速度偏慢，更有冲击力。opts.combo 见上面气球函数的说明。
 function _playReactionBurstFirework(emoji, opts) {
     const isCombo = !!(opts && opts.combo);
+    const SPEED = 1.6; // 比原来慢 1.6 倍，几朵之间的间隔也一起拉长；数量不变
     const BURST_COUNT = 5;
     const RAYS = 12;
     const container = document.createElement('div');
@@ -1870,11 +1907,11 @@ function _playReactionBurstFirework(emoji, opts) {
     for (let b = 0; b < BURST_COUNT; b++) {
         const originX = 10 + Math.random() * 80; // vw
         const originY = 15 + Math.random() * 50; // vh
-        const burstDelay = b * 0.28 + Math.random() * 0.1;
+        const burstDelay = (b * 0.28 + Math.random() * 0.1) * SPEED;
         for (let i = 0; i < RAYS; i++) {
             const angle = (i / RAYS) * Math.PI * 2 + Math.random() * 0.3;
             const dist = 90 + Math.random() * 70;
-            const duration = isCombo ? (2.4 + Math.random() * 0.9) : (1.4 + Math.random() * 0.5); // 普通1.4~1.9s / 组合2.4~3.3s
+            const duration = (isCombo ? (2.4 + Math.random() * 0.9) : (1.4 + Math.random() * 0.5)) * SPEED; // 原速：普通1.4~1.9s / 组合2.4~3.3s，再乘 SPEED
             const size = isCombo
                 ? Math.round(16 + Math.random() * 10) // 16~26px
                 : Math.round(22 + Math.random() * 16); // 22~38px
@@ -2202,7 +2239,7 @@ const addMessage = (message) => {
                 return;
             }
             const senderName = currentReplyTo.sender === 'user' ? (settings.myName || '我') : (settings.partnerName || '对方');
-            const previewText = currentReplyTo.text ? currentReplyTo.text.slice(0, 40) : (currentReplyTo.voice ? `语音 ${currentReplyTo.voice.duration || 0}"` : '🖼 图片');
+            const previewText = currentReplyTo.text ? currentReplyTo.text.slice(0, 40) : window._quotePreviewLabel(currentReplyTo);
             container.style.display = 'flex';
             container.innerHTML = `
                 <div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:rgba(var(--accent-color-rgb),0.07);border-left:3px solid var(--accent-color);border-radius:0 8px 8px 0;width:100%;">
@@ -2260,8 +2297,11 @@ const addMessage = (message) => {
                 ? window._formatPartnerPokeText(`${settings.partnerName} ${pokeAction}`)
                 : `${settings.partnerName} ${pokeAction}`;
 
-            addMessage({ id: Date.now(), text: pokeText, timestamp: new Date(), type: 'system' });
+            const _pokeMsgId = Date.now();
+            addMessage({ id: _pokeMsgId, text: pokeText, timestamp: new Date(), type: 'system' });
             if (typeof playSound === 'function') playSound('partner_poke');
+            // 不在主聊天页（后台/弹窗/情侣空间……）时提示一下：后台弹系统通知，应用内弹横条
+            if (typeof window._notifyPartnerEvent === 'function') window._notifyPartnerEvent('拍了拍你', _pokeMsgId);
             (function(){try{if(window._typingIndicatorAutoHideTimer){clearTimeout(window._typingIndicatorAutoHideTimer);window._typingIndicatorAutoHideTimer=null;}}catch(e){}var _tiW=document.getElementById('typing-indicator-wrapper');if(_tiW){var _tiInner=_tiW.querySelector('.typing-indicator');if(_tiInner){_tiInner.classList.add('hiding');setTimeout(function(){_tiW.style.display='none';if(_tiInner)_tiInner.classList.remove('hiding');},240);}else{_tiW.style.display='none';}}})();
         };
 
@@ -2439,7 +2479,7 @@ if (!isBatchMode && type === 'normal') {
                 setTimeout(() => {
                     const batchMsgId = Date.now() + index;
                     addMessage({
-                        id: batchMsgId, sender: 'user', text: msg.text || '', image: msg.image || null, timestamp: new Date(), status: 'sent', favorited: false, type: 'normal'
+                        id: batchMsgId, sender: 'user', text: msg.text || '', image: msg.image || null, isSticker: !!msg.isSticker, timestamp: new Date(), status: 'sent', favorited: false, type: 'normal'
                     });
                     window._currentRoundMsgIds = window._currentRoundMsgIds || [];
                     window._currentRoundMsgIds.push(batchMsgId);
@@ -2658,6 +2698,10 @@ if (partnerPersonas && partnerPersonas.length > 0 && Math.random() < 0.3) {
                     if (targetMsg && typeof window.addReactionToMessage === 'function') {
                         const emoji = customEmojis[Math.floor(Math.random() * customEmojis.length)];
                         window.addReactionToMessage(targetId, emoji);
+                        // 不在主聊天页时提示：后台弹系统通知，应用内弹横条，点一下跳到被加表情的那条消息
+                        if (typeof window._notifyPartnerEvent === 'function') {
+                            window._notifyPartnerEvent('回应了你的消息 ' + emoji, targetId);
+                        }
                     }
                 }
             }
@@ -2741,6 +2785,7 @@ if (partnerPersonas && partnerPersonas.length > 0 && Math.random() < 0.3) {
                                 text: '',
                                 timestamp: new Date(),
                                 image: randomSticker,
+                                isSticker: true,
                                 status: 'received',
                                 favorited: false,
                                 note: null,

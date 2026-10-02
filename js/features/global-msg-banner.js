@@ -64,6 +64,18 @@
         return false;
     }
 
+    // 用户现在是不是"不在主聊天页"：页面在后台、有弹窗盖着、情侣空间开着、陪伴页或电影院沉浸模式。
+    // 搞怪动画靠它判断要不要跳过（动画是飞到聊天头像上的，不在聊天页根本看不到）
+    function _isAwayFromChat() {
+        if (document.hidden) return true;
+        if (_shouldShow()) return true;
+        var companionPage = document.getElementById('companion-page');
+        if (companionPage && companionPage.classList.contains('active')) return true;
+        var csPage = document.getElementById('couple-space-page');
+        if (csPage && csPage.classList.contains('cinema-theater-mode')) return true;
+        return false;
+    }
+
     function _previewText(msg) {
         var t = (msg && msg.text) ? String(msg.text).replace(/\n/g, ' ').trim() : '';
         if (!t) return (msg && msg.image) ? '[图片]' : '';
@@ -91,17 +103,25 @@
         if (typeof window.closeCoupleSpace === 'function') window.closeCoupleSpace();
     }
 
+    // 当前这条横条要跳转到的消息 id（红包/搞怪/表情反应/拍一拍会带，普通消息不带，回到底部）
+    var _targetMsgId = null;
+
     function _onTap() {
         clearTimeout(_hideTimer);
         _hide();
+        var targetId = _targetMsgId;
         _closeAllOverlays();
-        // closeCoupleSpace 内部关闭动画是 380ms，等它跑完再回到底部，避免动画进行中跳转看起来很突兀
+        // closeCoupleSpace 内部关闭动画是 380ms，等它跑完再跳转，避免动画进行中跳转看起来很突兀
         setTimeout(function () {
+            if (targetId != null && typeof window._jumpToMessage === 'function') {
+                if (window._jumpToMessage(targetId)) return;
+            }
             if (typeof window._backToLatestMessages === 'function') window._backToLatestMessages();
         }, 400);
     }
 
-    function _show(msg) {
+    function _show(msg, targetId) {
+        _targetMsgId = (targetId === undefined) ? null : targetId;
         var banner = _ensureBanner();
         var partnerName = (typeof settings !== 'undefined' && settings.partnerName) || '对方';
         banner.querySelector('#gmb-name').textContent = partnerName;
@@ -124,6 +144,24 @@
         });
         _hideTimer = setTimeout(_hide, 4000);
     }
+
+    // 梦角做了不是"普通文字消息"的事（发红包、搞怪、加表情、拍一拍）时统一走这里：
+    //   页面在后台/锁屏 → 系统通知（跟梦角发消息、视频通话同一套开关）
+    //   页面在前台但在弹窗/情侣空间里 → 应用内横条，点一下跳到对应的那条消息
+    //   就在主聊天页 / 陪伴页 / 电影院沉浸模式 → 不弹
+    window._notifyPartnerEvent = function (text, msgId) {
+        try {
+            if (document.hidden) {
+                if (typeof window._sendPartnerNotification === 'function') {
+                    window._sendPartnerNotification((typeof settings !== 'undefined' && settings.partnerName) || '对方', text);
+                }
+                return;
+            }
+            if (!_shouldShow()) return;
+            _show({ text: text }, msgId);
+        } catch (e) { console.warn('[global-msg-banner] _notifyPartnerEvent 出错', e); }
+    };
+    window._isAwayFromChat = _isAwayFromChat;
 
     if (typeof window._registerPartnerMessageListener === 'function') {
         window._registerPartnerMessageListener(function (msg) {

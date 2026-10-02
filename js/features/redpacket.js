@@ -839,8 +839,9 @@
         _save();
 
         if (typeof addMessage === 'function') {
+            const _rpMsgId = Date.now() + Math.random();
             addMessage({
-                id: Date.now() + Math.random(),
+                id: _rpMsgId,
                 sender: settings.partnerName || '对方',
                 text: '',
                 timestamp: new Date(),
@@ -853,7 +854,10 @@
                 note: null
             });
             if (typeof playSound === 'function') playSound('message');
-            if (typeof window._sendPartnerNotification === 'function') {
+            // 后台弹系统通知；在应用内弹窗/情侣空间里弹横条，点一下跳到这个红包
+            if (typeof window._notifyPartnerEvent === 'function') {
+                window._notifyPartnerEvent('给你发了一个红包', _rpMsgId);
+            } else if (typeof window._sendPartnerNotification === 'function') {
                 window._sendPartnerNotification(settings.partnerName || '对方', '给你发了一个红包');
             }
         }
