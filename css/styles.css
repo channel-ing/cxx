@@ -1641,7 +1641,7 @@
             font-size: 11px;
             flex-shrink: 0;
         }
-        .call-event-detail::before { content: '路'; margin-right: 4px; }
+        .call-event-detail::before { content: '\00B7'; margin-right: 4px; }
         .call-event-delete {
             background: none;
             border: none;

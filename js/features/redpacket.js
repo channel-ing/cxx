@@ -519,6 +519,8 @@
     async function evaluatePartnerTrigger() {
         if (!_loaded) await _load();
         if (_isGatedByOtherModes()) return null; // 陪伴模式/观影模式期间不判定
+        // 相遇日期以用户修改后的为准：这份覆盖数据原本只在打开情侣空间时才加载，没打开过就会退回首条消息的日期
+        try { if (typeof window._annLoadMeetOverride === 'function') await window._annLoadMeetOverride(); } catch (e) {}
         _rpEnsureSchedulerShape();
         var today = _rpTodayStr();
 
