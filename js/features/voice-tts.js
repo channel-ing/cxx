@@ -11,7 +11,7 @@
     // ─────────── 存储 Key ───────────
     const STORE_KEY = 'voiceTtsConfig';
     const DEFAULT_TTS_MODEL = 'speech-02-turbo';
-    const DEFAULT_TRANSLATE_MODEL = 'MiniMax-M2.7-highspeed';
+    const DEFAULT_TRANSLATE_MODEL = 'MiniMax-M3.1-Flash';
     const TRANSLATE_MAX_TOKENS = 512;
 
     // ─────────── 内存缓存：避免重复点击时反复请求接口 ───────────
